@@ -42,9 +42,9 @@ const PREFERRED_ROOT_FILES = [
   'tailwind.config.js',
   'index.html'
 ];
-const VITE_DYAD_BACKEND_URL = process.env.VITE_DYAD_BACKEND_URL || "http://localhost:9999"
-const VITE_DYAD_API_URL = process.env.VITE_DYAD_API_URL || "http://localhost:9999/api"
-const VITE_DYAD_WEBSOCKET_URL = process.env.VITE_DYAD_WEBSOCKET_URL || "ws://localhost:9999"
+const VITE_DYAD_BACKEND_URL = import.meta.env.VITE_DYAD_BACKEND_URL || "http://localhost:9999"
+const VITE_DYAD_API_URL = import.meta.env.VITE_DYAD_API_URL || "http://localhost:9999/api"
+const VITE_DYAD_WEBSOCKET_URL = import.meta.env.VITE_DYAD_WEBSOCKET_URL || "ws://localhost:9999"
 export default function SendToDyadButton({
   defaultProjectName,
   defaultFramework = 'react',

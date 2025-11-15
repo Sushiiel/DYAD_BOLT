@@ -35,7 +35,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2"; // Can be: qwen3:4b
 const wsConnections = new Set<any>();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', '*', `${VITE_DYAD_BACKEND_URL}`],
+  origin: ['http://localhost:5173', 'http://localhost:3000', '*', `${VITE_DYAD_BACKEND_URL}`,'http://62.72.59.219:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
