@@ -8,6 +8,8 @@ import React, { useState } from 'react';
  * - Polls briefly to wait for persistence
  */
 
+
+
 interface Props {
   defaultProjectName?: string;
   defaultFramework?: string;
@@ -40,7 +42,9 @@ const PREFERRED_ROOT_FILES = [
   'tailwind.config.js',
   'index.html'
 ];
-
+const VITE_DYAD_BACKEND_URL = process.env.VITE_DYAD_BACKEND_URL || "http://localhost:9999"
+const VITE_DYAD_API_URL = process.env.VITE_DYAD_API_URL || "http://localhost:9999/api"
+const VITE_DYAD_WEBSOCKET_URL = process.env.VITE_DYAD_WEBSOCKET_URL || "ws://localhost:9999"
 export default function SendToDyadButton({
   defaultProjectName,
   defaultFramework = 'react',
@@ -318,7 +322,7 @@ export default function SendToDyadButton({
       const projectId = prompt('Project ID for Dyad (leave blank to auto-generate):', `bolt-${Math.random().toString(36).slice(2, 9)}`) || undefined;
       const projectName = prompt('Project name:', defaultProjectName || document.title || 'bolt-generated-app') || undefined;
 
-      const resp = await fetch('http://localhost:9999/api/sync/files', {
+      const resp = await fetch(`${VITE_DYAD_BACKEND_URL}/api/sync/files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

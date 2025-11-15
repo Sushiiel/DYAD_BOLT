@@ -10,6 +10,8 @@ import crypto from 'crypto';
 import { projects, files } from '../db/schema';
 import { Octokit } from '@octokit/rest';
 import fetch from 'node-fetch';
+import dotenv from "dotenv"
+dotenv.config();
 
 type FileInsert = typeof files.$inferInsert;
 type ProjectInsert = typeof projects.$inferInsert;

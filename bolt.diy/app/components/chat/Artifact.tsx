@@ -14,6 +14,9 @@ const highlighterOptions = {
   langs: ['shell'],
   themes: ['light-plus', 'dark-plus'],
 };
+const VITE_DYAD_BACKEND_URL = process.env.VITE_DYAD_BACKEND_URL || "http://localhost:9999"
+const VITE_DYAD_API_URL = process.env.VITE_DYAD_API_URL || "http://localhost:9999/api"
+const VITE_DYAD_WEBSOCKET_URL = process.env.VITE_DYAD_WEBSOCKET_URL || "ws://localhost:9999"
 
 const shellHighlighter: HighlighterGeneric<BundledLanguage, BundledTheme> =
   import.meta.hot?.data.shellHighlighter ?? (await createHighlighter(highlighterOptions));
@@ -221,7 +224,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
       files,
     };
 
-    const resp = await fetch('http://localhost:9999/api/sync/files', {
+    const resp = await fetch(`${VITE_DYAD_BACKEND_URL}/api/sync/files`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
