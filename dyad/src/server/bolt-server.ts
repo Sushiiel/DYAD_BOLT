@@ -18,7 +18,9 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = Number(process.env.PORT || 9999);
-
+const VITE_DYAD_BACKEND_URL = process.env.VITE_DYAD_BACKEND_URL || "http://localhost:9999"
+const VITE_DYAD_API_URL = process.env.VITE_DYAD_API_URL || "http://localhost:9999/api"
+const VITE_DYAD_WEBSOCKET_URL = process.env.VITE_DYAD_WEBSOCKET_URL || "ws://localhost:9999"
 // GitHub Configuration
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || "Sushiiel";
@@ -31,7 +33,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2"; // Can be: qwen3:4b
 const wsConnections = new Set<any>();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: ['http://localhost:5173', 'http://localhost:3000', '*', `${VITE_DYAD_BACKEND_URL}`],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -1062,7 +1064,7 @@ app.get('/dyad', (req, res) => {
             const chatEndRef = useRef(null);
 
             useEffect(() => {
-                const ws = new WebSocket(\`ws://localhost:${PORT}\`);
+                const ws = new WebSocket(\`${VITE_DYAD_WEBSOCKET_URL}\`);
                 ws.onopen = () => {
                     setWsConnected(true);
                     addNotification('info', 'Connected to Ollama server');
@@ -1089,7 +1091,7 @@ app.get('/dyad', (req, res) => {
             const loadProjects = async () => {
                 try {
                     setLoading(true);
-                    const response = await axios.get(\`http://localhost:${PORT}/api/projects\`);
+                    const response = await axios.get(\`${VITE_DYAD_BACKEND_URL}/api/projects\`);
                     setProjects(response.data);
                 } catch (error) {
                     addNotification('error', 'Failed to load projects');
@@ -1100,7 +1102,7 @@ app.get('/dyad', (req, res) => {
 
             const loadFiles = async (projectId) => {
                 try {
-                    const response = await axios.get(\`http://localhost:${PORT}/api/files?projectId=\${projectId}\`);
+                    const response = await axios.get(\`${VITE_DYAD_BACKEND_URL}/api/files?projectId=\${projectId}\`);
                     setFiles(response.data);
                     setSelectedFile(null);
                     setSelectedFiles([]);
@@ -1120,7 +1122,7 @@ app.get('/dyad', (req, res) => {
             const createProject = async (data) => {
                 try {
                     setLoading(true);
-                    await axios.post(\`http://localhost:${PORT}/api/projects\`, data);
+                    await axios.post(\`${VITE_DYAD_BACKEND_URL}/api/projects\`, data);
                     await loadProjects();
                     setShowCreateModal(false);
                     addNotification('success', 'Project created!');
@@ -1140,7 +1142,7 @@ app.get('/dyad', (req, res) => {
             const saveFile = async () => {
                 if (!selectedFile || !selectedProject) return;
                 try {
-                    await axios.post(\`http://localhost:${PORT}/api/files\`, {
+                    await axios.post(\`${VITE_DYAD_BACKEND_URL}/api/files\`, {
                         projectId: selectedProject.id,
                         path: selectedFile.path,
                         content: fileContent
@@ -1154,7 +1156,7 @@ app.get('/dyad', (req, res) => {
             const deleteProject = async (projectId) => {
                 if (!confirm('Delete project?')) return;
                 try {
-                    await axios.delete(\`http://localhost:${PORT}/api/projects/\${projectId}\`);
+                    await axios.delete(\`${VITE_DYAD_BACKEND_URL}/api/projects/\${projectId}\`);
                     await loadProjects();
                     if (selectedProject?.id === projectId) {
                         setSelectedProject(null);
@@ -1168,7 +1170,7 @@ app.get('/dyad', (req, res) => {
             const deployToGitHub = async (projectId) => {
                 try {
                     setDeployingProjects(prev => ({...prev, [projectId]: true}));
-                    const response = await axios.post(\`http://localhost:${PORT}/api/projects/\${projectId}/push\`);
+                    const response = await axios.post(\`${VITE_DYAD_BACKEND_URL}/api/projects/\${projectId}/push\`);
                     addNotification('success', \`Deployed to: \${response.data.repositoryUrl}\`);
                     await loadProjects();
                 } catch (error) {
@@ -1191,7 +1193,7 @@ app.get('/dyad', (req, res) => {
                 setIsTyping(true);
 
                 try {
-                    const response = await fetch(\`http://localhost:${PORT}/api/ai/chat\`, {
+                    const response = await fetch(\`${VITE_DYAD_BACKEND_URL}/api/ai/chat\`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
