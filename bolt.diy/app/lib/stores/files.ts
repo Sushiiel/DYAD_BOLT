@@ -595,14 +595,14 @@ export class FilesStore {
     // Clean up any files that were previously deleted
     this.#cleanupDeletedFiles();
 
-    // Set up file watcher
+    // Set up file watcher with reduced delay for faster updates
     webcontainer.internal.watchPaths(
       {
         include: [`${WORK_DIR}/**`],
         exclude: ['**/node_modules', '.git', '**/package-lock.json'],
         includeContent: true,
       },
-      bufferWatchEvents(100, this.#processEventBuffer.bind(this)),
+      bufferWatchEvents(50, this.#processEventBuffer.bind(this)),
     );
 
     // Get the current chat ID
@@ -696,14 +696,19 @@ export class FilesStore {
   #processEventBuffer(events: Array<[events: PathWatcherEvent[]]>) {
     const watchEvents = events.flat(2);
 
+    logger.info(`[FILE WATCHER] Processing ${watchEvents.length} events`);
+
     for (const { type, path, buffer } of watchEvents) {
       // remove any trailing slashes
       const sanitizedPath = path.replace(/\/+$/g, '');
+
+      logger.info(`[FILE WATCHER] Event: ${type} | Path: ${sanitizedPath}`);
 
       switch (type) {
         case 'add_dir': {
           // we intentionally add a trailing slash so we can distinguish files from folders in the file tree
           this.files.setKey(sanitizedPath, { type: 'folder' });
+          logger.info(`[FILE WATCHER] ✓ Added folder to store: ${sanitizedPath}`);
           break;
         }
         case 'remove_dir': {
@@ -715,6 +720,7 @@ export class FilesStore {
             }
           }
 
+          logger.info(`[FILE WATCHER] ✓ Removed folder from store: ${sanitizedPath}`);
           break;
         }
         case 'add_file':
@@ -738,20 +744,29 @@ export class FilesStore {
           }
 
           this.files.setKey(sanitizedPath, { type: 'file', content, isBinary });
+          logger.info(`[FILE WATCHER] ✓ ${type === 'add_file' ? 'Added' : 'Updated'} file in store: ${sanitizedPath} (${content.length} bytes, binary: ${isBinary})`);
 
           break;
         }
         case 'remove_file': {
           this.#size--;
           this.files.setKey(sanitizedPath, undefined);
+          logger.info(`[FILE WATCHER] ✓ Removed file from store: ${sanitizedPath}`);
           break;
         }
         case 'update_directory': {
           // we don't care about these events
+          logger.debug(`[FILE WATCHER] Ignoring update_directory event for: ${sanitizedPath}`);
           break;
         }
       }
     }
+
+    // Log current file count
+    const currentFiles = this.files.get();
+    const fileCount = Object.values(currentFiles).filter(f => f?.type === 'file').length;
+    const folderCount = Object.values(currentFiles).filter(f => f?.type === 'folder').length;
+    logger.info(`[FILE WATCHER] Store now contains ${fileCount} files and ${folderCount} folders`);
   }
 
   #decodeFileContent(buffer?: Uint8Array) {

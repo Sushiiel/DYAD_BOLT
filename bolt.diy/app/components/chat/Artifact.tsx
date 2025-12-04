@@ -27,9 +27,10 @@ if (import.meta.hot) {
 
 interface ArtifactProps {
   messageId: string;
+  chatId?: string; // Add chat ID for file organization
 }
 
-export const Artifact = memo(({ messageId }: ArtifactProps) => {
+export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
   const userToggledActions = useRef(false);
   const [showActions, setShowActions] = useState(false);
   const [allActionFinished, setAllActionFinished] = useState(false);
@@ -140,10 +141,10 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
             c.files && !Array.isArray(c.files)
               ? c.files
               : c.snapshot && c.snapshot.files && !Array.isArray(c.snapshot.files)
-              ? c.snapshot.files
-              : typeof c === 'object' && Object.keys(c).length && Object.keys(c)[0].startsWith('/home/project')
-              ? c
-              : null;
+                ? c.snapshot.files
+                : typeof c === 'object' && Object.keys(c).length && Object.keys(c)[0].startsWith('/home/project')
+                  ? c
+                  : null;
           if (m) return m;
         }
       }
@@ -210,10 +211,35 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
       }
     }
 
-    // Build final files payload
+    // Build final files payload with NORMALIZED paths
     const files = chosen.map((p) => {
       const raw = filesMap[p];
-      return { path: p, content: normalize(raw) };
+
+      // Normalize the path: remove /home/project/ and any chat ID prefix
+      let cleanPath = p;
+
+      // Remove /home/project/ prefix if present
+      if (cleanPath.startsWith('/home/project/')) {
+        cleanPath = cleanPath.substring('/home/project/'.length);
+      } else if (cleanPath.startsWith('home/project/')) {
+        cleanPath = cleanPath.substring('home/project/'.length);
+      }
+
+      // Remove chat ID prefix if present (pattern: {chatId}/...)
+      // Chat IDs are typically alphanumeric, not common folder names
+      const chatIdMatch = cleanPath.match(/^([^/]+)\//);
+      if (chatIdMatch && chatIdMatch[1]) {
+        const firstSegment = chatIdMatch[1];
+        // If first segment is not a common folder name, it's likely a chat ID
+        if (firstSegment !== 'src' && firstSegment !== 'public' && firstSegment !== 'node_modules' && firstSegment !== 'dist') {
+          // Check if it looks like a chat ID (contains numbers or is a UUID-like string)
+          if (/\d/.test(firstSegment) || firstSegment.length > 10) {
+            cleanPath = cleanPath.substring(firstSegment.length + 1);
+          }
+        }
+      }
+
+      return { path: cleanPath, content: normalize(raw) };
     });
 
     const payload = {
@@ -239,14 +265,15 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
       <div className="artifact border border-bolt-elements-borderColor flex flex-col overflow-hidden rounded-lg w-full transition-border duration-150">
         <div className="flex items-center">
           <button
-            className="flex items-stretch bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover w-full overflow-hidden"
+            className="flex items-stretch bg-white/90 hover:bg-white w-full overflow-hidden text-black transition-colors"
             onClick={() => {
-              const showWorkbench = workbenchStore.showWorkbench.get();
-              workbenchStore.showWorkbench.set(!showWorkbench);
+              if (!workbenchStore.showWorkbench.get()) {
+                workbenchStore.showWorkbench.set(true);
+              }
             }}
           >
             <div className="px-5 p-3.5 w-full text-left">
-              <div className="w-full text-bolt-elements-textPrimary font-medium leading-5 text-sm">
+              <div className="w-full font-medium leading-5 text-sm text-black">
                 {/* Use the dynamic title here */}
                 {artifact?.type === 'bundled'
                   ? allActionFinished
@@ -254,58 +281,84 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
                       ? 'Project Restored'
                       : 'Project Created'
                     : artifact.id === 'restored-project-setup'
-                    ? 'Restoring Project...'
-                    : 'Creating Project...'
+                      ? 'Restoring Project...'
+                      : 'Creating Project...'
                   : artifact?.title}
               </div>
-              <div className="w-full w-full text-bolt-elements-textSecondary text-xs mt-0.5">
+              <div className="w-full text-[11px] tracking-wide uppercase text-black/70 mt-1">
                 Click to open Workbench
               </div>
             </div>
           </button>
 
-          {/* ALWAYS-VISIBLE: small Send-to-Dyad button in header (visible for all artifacts) */}
-          <div style={{ marginLeft: 8 }}>
-            <button
-              id={`send-to-dyad-btn-header-${artifact?.id ?? Math.random().toString(36).slice(2, 6)}`}
-              className="bg-bolt-elements-artifacts-background hover:bg-bolt-elements-artifacts-backgroundHover px-3 py-2 rounded"
-              onClick={async () => {
-                try {
-                  const confirmProceed = confirm('Send current generated project files from IndexedDB to Dyad?');
-                  if (!confirmProceed) return;
+          {/* Compact Send-to-Dyad button in header */}
+          <button
+            id={`send-to-dyad-btn-header-${artifact?.id ?? Math.random().toString(36).slice(2, 6)}`}
+            className="bg-white/90 hover:bg-white text-black px-3 py-2 border-l border-bolt-elements-borderColor transition-colors flex items-center justify-center text-xs"
+            onClick={async () => {
+              try {
+                const confirmProceed = confirm('Send current generated project files to Dyad?');
+                if (!confirmProceed) return;
 
-                  // read latest snapshot files map
-                  const filesMap = await readLatestFilesMap();
-                  if (!filesMap) {
-                    alert('No /home/project files found in boltHistory snapshots.');
-                    return;
-                  }
+                console.log('\n=== ARTIFACT SEND TO DYAD ===');
+                console.log('Using workbench store files instead of IndexedDB');
 
-                  const projectId = prompt('Project ID for Dyad (leave blank to auto-generate):', `bolt-${Math.random().toString(36).slice(2, 9)}`) || undefined;
-                  const projectName = prompt('Project name:', artifact?.title ?? document.title ?? 'bolt-generated-app') || undefined;
+                // Get files from workbench store (current chat's files)
+                const chatFiles = workbenchStore.getFilesForChat(chatId);
 
-                  // prefer created file paths from actions when posting
-                  const resp = await postFilesToDyad(filesMap, projectId, projectName, createdFilesFromActions);
-                  if (!resp.ok) {
-                    const txt = await resp.text().catch(() => '<no body>');
-                    console.error('Dyad upload failed', resp.status, txt);
-                    alert(`Upload failed: ${resp.status} — check console`);
-                  } else {
-                    const json = await resp.json().catch(() => null);
-                    console.log('Dyad upload response', json);
-                    alert('Upload complete — check Dyad UI');
-                  }
-                } catch (err) {
-                  console.error('Send-to-Dyad error', err);
-                  alert('Error sending to Dyad — see console');
+                if (!chatFiles || Object.keys(chatFiles).length === 0) {
+                  alert('No files found in current chat.');
+                  return;
                 }
-              }}
-              title="Send generated files to Dyad server"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
-            >
-              <span style={{ fontSize: 12, color: '#fff' }}>Send to Dyad</span>
-            </button>
-          </div>
+
+                console.log('Files from workbench:', Object.keys(chatFiles).length);
+                console.log('File paths:', Object.keys(chatFiles));
+
+                // Convert to array format for upload
+                const files = Object.entries(chatFiles)
+                  .filter(([_, fileData]) => !fileData.isBinary && fileData.content)
+                  .map(([path, fileData]) => ({
+                    path: path, // Already normalized by getFilesForChat
+                    content: fileData.content
+                  }));
+
+                console.log('Files to upload:', files.length);
+
+                const projectId = prompt('Project ID for Dyad (leave blank to auto-generate):', `bolt-${Math.random().toString(36).slice(2, 9)}`) || undefined;
+                const projectName = prompt('Project name:', artifact?.title ?? document.title ?? 'bolt-generated-app') || undefined;
+
+                const resp = await fetch(`${VITE_DYAD_BACKEND_URL}/api/sync/files`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    projectId,
+                    projectName,
+                    framework: 'react',
+                    template: 'bolt-import',
+                    files
+                  }),
+                  credentials: 'include',
+                });
+
+                if (!resp.ok) {
+                  const txt = await resp.text().catch(() => '<no body>');
+                  console.error('Dyad upload failed', resp.status, txt);
+                  alert(`Upload failed: ${resp.status} — check console`);
+                } else {
+                  const json = await resp.json().catch(() => null);
+                  console.log('Dyad upload response', json);
+                  alert('Upload complete — check Dyad UI');
+                }
+              } catch (err) {
+                console.error('Send-to-Dyad error', err);
+                alert('Error sending to Dyad — see console');
+              }
+            }}
+            title="Send generated files to Dyad server"
+          >
+            <span className="i-ph:upload text-sm mr-1"></span>
+            <span>Dyad</span>
+          </button>
 
           {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
           <AnimatePresence>
@@ -348,7 +401,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
                 defaultProjectName={artifact?.title ?? 'bolt-generated-app'}
                 defaultFramework="react"
                 buttonId={`send-to-dyad-btn-${artifact?.id ?? Math.random().toString(36).slice(2, 6)}`}
-                createdFilePaths={createdFilesFromActions}
+                chatId={chatId}
               />
             </div>
           </div>

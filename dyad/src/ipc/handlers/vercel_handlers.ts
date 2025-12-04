@@ -91,19 +91,19 @@ async function detectFramework(
       file: string;
       framework: CreateProjectFramework;
     }> = [
-      { file: "next.config.js", framework: "nextjs" },
-      { file: "next.config.mjs", framework: "nextjs" },
-      { file: "next.config.ts", framework: "nextjs" },
-      { file: "vite.config.js", framework: "vite" },
-      { file: "vite.config.ts", framework: "vite" },
-      { file: "vite.config.mjs", framework: "vite" },
-      { file: "nuxt.config.js", framework: "nuxtjs" },
-      { file: "nuxt.config.ts", framework: "nuxtjs" },
-      { file: "astro.config.js", framework: "astro" },
-      { file: "astro.config.mjs", framework: "astro" },
-      { file: "astro.config.ts", framework: "astro" },
-      { file: "svelte.config.js", framework: "svelte" },
-    ];
+        { file: "next.config.js", framework: "nextjs" },
+        { file: "next.config.mjs", framework: "nextjs" },
+        { file: "next.config.ts", framework: "nextjs" },
+        { file: "vite.config.js", framework: "vite" },
+        { file: "vite.config.ts", framework: "vite" },
+        { file: "vite.config.mjs", framework: "vite" },
+        { file: "nuxt.config.js", framework: "nuxtjs" },
+        { file: "nuxt.config.ts", framework: "nuxtjs" },
+        { file: "astro.config.js", framework: "astro" },
+        { file: "astro.config.mjs", framework: "astro" },
+        { file: "astro.config.ts", framework: "astro" },
+        { file: "svelte.config.js", framework: "svelte" },
+      ];
 
     for (const { file, framework } of configFiles) {
       if (fs.existsSync(path.join(appPath, file))) {
@@ -314,6 +314,7 @@ async function handleCreateProject(
 
     // Trigger the first deployment
     logger.info(`Triggering first deployment for project: ${projectData.id}`);
+    let vercelDeploymentId: string | undefined;
     try {
       // Create deployment via Vercel SDK using the project settings we just created
       const deploymentData = await vercel.deployments.createDeployment({
@@ -330,13 +331,23 @@ async function handleCreateProject(
         },
       });
 
+      // Store the Vercel deployment ID
+      vercelDeploymentId = deploymentData.id;
+
+      logger.info(`✅ Vercel deployment created with ID: ${vercelDeploymentId}`);
+
       if (deploymentData.url) {
         logger.info(`First deployment successful: ${deploymentData.url}`);
+        logger.info(`Deployment ID: ${vercelDeploymentId}`);
       } else {
-        logger.warn("First deployment failed: No deployment URL returned");
+        logger.warn("First deployment created but no URL returned yet");
+        logger.info(`Deployment ID: ${vercelDeploymentId} - check status with this ID`);
       }
     } catch (deployError: any) {
       logger.warn(`First deployment failed with error: ${deployError.message}`);
+      if (vercelDeploymentId) {
+        logger.info(`Deployment ID (for status checking): ${vercelDeploymentId}`);
+      }
       // Don't throw here - project creation was successful, deployment failure is non-critical
     }
   } catch (err: any) {

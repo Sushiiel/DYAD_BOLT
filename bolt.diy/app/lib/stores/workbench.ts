@@ -18,6 +18,7 @@ import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import type { ActionAlert, DeployAlert, SupabaseAlert } from '~/types/actions';
+import { getCurrentChatId } from '~/utils/fileLocks';
 
 const { saveAs } = fileSaver;
 
@@ -476,6 +477,10 @@ export class WorkbenchStore {
       this.artifactIdList.push(messageId);
     }
 
+    // Get current chat ID for file isolation
+    const chatId = getCurrentChatId();
+    console.log('[WorkbenchStore] Creating artifact with chat ID:', chatId, 'for message:', messageId);
+
     this.artifacts.setKey(messageId, {
       id,
       title,
@@ -484,6 +489,7 @@ export class WorkbenchStore {
       runner: new ActionRunner(
         webcontainer,
         () => this.boltTerminal,
+        chatId, // Pass chat ID for file isolation
         (alert) => {
           if (this.#reloadedMessages.has(messageId)) {
             return;
@@ -559,7 +565,15 @@ export class WorkbenchStore {
 
     if (data.action.type === 'file') {
       const wc = await webcontainer;
-      const fullPath = path.join(wc.workdir, data.action.filePath);
+
+      // Use the file path directly without chat ID prefix
+      // Files should be written to workdir, not chat-specific subdirectories
+      let fullPath = data.action.filePath;
+
+      // Ensure the path is absolute and within workdir
+      if (!fullPath.startsWith(wc.workdir)) {
+        fullPath = path.join(wc.workdir, fullPath);
+      }
 
       /*
        * For scoped locks, we would need to implement diff checking here
@@ -585,11 +599,25 @@ export class WorkbenchStore {
 
       if (!isStreaming && data.action.content) {
         await this.saveFile(fullPath);
+
+        // Explicitly refresh previews after saving file
+        try {
+          this.#previewsStore.refreshAllPreviews();
+        } catch (error) {
+          console.warn('Failed to refresh previews:', error);
+        }
       }
 
       if (!isStreaming) {
         await artifact.runner.runAction(data);
         this.resetAllFileModifications();
+
+        // Final preview refresh after all actions complete
+        try {
+          this.#previewsStore.refreshAllPreviews();
+        } catch (error) {
+          console.warn('Failed to refresh previews:', error);
+        }
       }
     } else {
       await artifact.runner.runAction(data);
@@ -867,6 +895,37 @@ export class WorkbenchStore {
       console.error('Error pushing to GitHub:', error);
       throw error; // Rethrow the error for further handling
     }
+  }
+
+  /**
+   * Get files for a specific chat ID
+   * This method properly filters files based on whether they're stored in chat-specific subdirectories.
+   * If files are stored with chat ID prefix (e.g., /home/project/{chatId}/...), it filters to only
+   * return files for the current chat. Otherwise, it returns all files from /home/project/.
+   * @param chatId The chat ID to filter files for
+   * @returns Object with file paths and their content (paths are normalized without chat ID prefix)
+   */
+  getFilesForChat(chatId?: string): Record<string, { content: string; isBinary: boolean }> {
+    const filesMap = this.files.get();
+    const result: Record<string, { content: string; isBinary: boolean }> = {};
+
+    // Return all files since we no longer use chat-specific directories
+    for (const [filePath, dirent] of Object.entries(filesMap)) {
+      if (dirent?.type === 'file') {
+        const content = dirent.content;
+        const isBinary = dirent.isBinary || false;
+
+        if (typeof content === 'string') {
+          result[filePath] = { content, isBinary };
+        } else if (content instanceof Uint8Array) {
+          // Convert Uint8Array to base64 string for binary files
+          const base64 = btoa(String.fromCharCode.apply(null, Array.from(content)));
+          result[filePath] = { content: base64, isBinary: true };
+        }
+      }
+    }
+
+    return result;
   }
 }
 

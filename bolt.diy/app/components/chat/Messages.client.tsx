@@ -22,11 +22,12 @@ interface MessagesProps {
   model?: string;
   provider?: ProviderInfo;
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  chatId?: string; // Add chat ID for file organization
 }
 
 export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
   (props: MessagesProps, ref: ForwardedRef<HTMLDivElement> | undefined) => {
-    const { id, isStreaming = false, messages = [] } = props;
+    const { id, isStreaming = false, messages = [], chatId } = props;
     const location = useLocation();
 
     const handleRewind = (messageId: string) => {
@@ -79,6 +80,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                         messageId={messageId}
                         onRewind={handleRewind}
                         onFork={handleFork}
+                        chatId={chatId}
                         append={props.append}
                         chatMode={props.chatMode}
                         setChatMode={props.setChatMode}

@@ -67,6 +67,7 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #chatId?: string;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -77,12 +78,14 @@ export class ActionRunner {
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
+    chatId?: string,
     onAlert?: (alert: ActionAlert) => void,
     onSupabaseAlert?: (alert: SupabaseAlert) => void,
     onDeployAlert?: (alert: DeployAlert) => void,
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
+    this.#chatId = chatId;
     this.onAlert = onAlert;
     this.onSupabaseAlert = onSupabaseAlert;
     this.onDeployAlert = onDeployAlert;
@@ -305,7 +308,11 @@ export class ActionRunner {
     }
 
     const webcontainer = await this.#webcontainer;
-    const relativePath = nodePath.relative(webcontainer.workdir, action.filePath);
+    let relativePath = nodePath.relative(webcontainer.workdir, action.filePath);
+
+    // Write files directly to workdir for proper preview rendering
+    logger.info(`[FILE CREATION] Writing to: ${relativePath}`);
+    logger.info(`[FILE CREATION] Full path: ${nodePath.join(webcontainer.workdir, relativePath)}`);
 
     let folder = nodePath.dirname(relativePath);
 
@@ -315,17 +322,92 @@ export class ActionRunner {
     if (folder !== '.') {
       try {
         await webcontainer.fs.mkdir(folder, { recursive: true });
-        logger.debug('Created folder', folder);
+        logger.info(`[FILE CREATION] Created folder: ${folder}`);
       } catch (error) {
-        logger.error('Failed to create folder\n\n', error);
+        logger.error('[FILE CREATION] Failed to create folder\n\n', error);
       }
     }
 
     try {
-      await webcontainer.fs.writeFile(relativePath, action.content);
-      logger.debug(`File written ${relativePath}`);
+      // Write file with retry logic for better reliability
+      let writeSuccess = false;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (!writeSuccess && retryCount < maxRetries) {
+        try {
+          await webcontainer.fs.writeFile(relativePath, action.content);
+          logger.info(`[FILE CREATION] ✓ File written successfully: ${relativePath} (attempt ${retryCount + 1})`);
+          logger.info(`[FILE CREATION] Content length: ${action.content.length} bytes`);
+
+          // Verify file was written correctly with retry
+          const written = await webcontainer.fs.readFile(relativePath, 'utf-8');
+          if (written !== action.content) {
+            throw new Error('File content mismatch after write');
+          }
+          logger.info(`[FILE CREATION] ✓ File verified: ${relativePath}`);
+          writeSuccess = true;
+        } catch (verifyError) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            logger.error(`[FILE CREATION] ✗ File verification failed after ${maxRetries} attempts: ${relativePath}`, verifyError);
+            throw verifyError;
+          }
+          logger.warn(`[FILE CREATION] Retry ${retryCount}/${maxRetries} for ${relativePath}`);
+          await new Promise(resolve => setTimeout(resolve, 100 * retryCount)); // Exponential backoff
+        }
+      }
+
+      // Trigger HMR for React/JS/TS/CSS files using a more reliable method
+      const ext = nodePath.extname(relativePath);
+      const hmrExtensions = ['.jsx', '.tsx', '.js', '.ts', '.css'];
+
+      if (hmrExtensions.includes(ext)) {
+        logger.info(`[HMR] Triggering HMR for ${relativePath}`);
+
+        try {
+          // Use a temporary trigger file to force Vite to detect changes
+          // This is more reliable than modifying source files
+          const triggerFile = '.bolt-hmr-trigger';
+          const triggerContent = `// HMR trigger at ${Date.now()} for ${relativePath}`;
+
+          await webcontainer.fs.writeFile(triggerFile, triggerContent);
+          logger.info(`[HMR] ✓ Created trigger file`);
+
+          // Small delay to ensure file system events are processed
+          await new Promise(resolve => setTimeout(resolve, 50));
+
+          // Delete the trigger file to create another file system event
+          try {
+            await webcontainer.fs.rm(triggerFile);
+            logger.info(`[HMR] ✓ Removed trigger file - HMR should activate`);
+          } catch (e) {
+            // Ignore errors when removing trigger file
+            logger.debug(`[HMR] Could not remove trigger file (non-critical):`, e);
+          }
+        } catch (hmrError) {
+          logger.warn(`[HMR] Failed to trigger HMR (non-critical):`, hmrError);
+          // Don't throw - HMR is nice to have but not critical
+        }
+      }
+
+      // Only restart dev server for critical configuration files
+      const fileName = nodePath.basename(relativePath);
+      const criticalFiles = ['package.json', 'vite.config.js', 'vite.config.ts', 'tsconfig.json'];
+
+      if (criticalFiles.includes(fileName)) {
+        logger.info(`[DEV SERVER] Critical file changed: ${fileName}, may require dev server restart`);
+        logger.info(`[DEV SERVER] User should manually restart if needed`);
+        // Note: Automatic restart removed as it was causing issues
+        // The dev server will typically pick up package.json changes automatically
+      }
+
+      // Add a small delay to ensure file system events propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
+
     } catch (error) {
-      logger.error('Failed to write file\n\n', error);
+      logger.error('[FILE CREATION] ✗ Failed to write file\n\n', error);
+      throw error;
     }
   }
 

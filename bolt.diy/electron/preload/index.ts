@@ -20,3 +20,8 @@ const ipc = {
 };
 
 contextBridge.exposeInMainWorld('ipc', ipc);
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getLastGeneratedAppDirectory: () => ipcRenderer.invoke('get-last-generated-app-directory'),
+  getLastPreviewError: () => ipcRenderer.invoke('get-last-preview-error'),
+});

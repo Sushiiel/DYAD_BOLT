@@ -33,6 +33,7 @@ interface AssistantMessageProps {
     | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
     | undefined;
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  chatId?: string; // Add chat ID for file organization
 }
 
 function openArtifactInWorkbench(filePath: string) {
@@ -73,6 +74,7 @@ export const AssistantMessage = memo(
     provider,
     parts,
     addToolResult,
+    chatId,
   }: AssistantMessageProps) => {
     const filteredAnnotations = (annotations?.filter(
       (annotation: JSONValue) =>
@@ -176,7 +178,7 @@ export const AssistantMessage = memo(
             </div>
           </div>
         </>
-        <Markdown append={append} chatMode={chatMode} setChatMode={setChatMode} model={model} provider={provider} html>
+        <Markdown append={append} chatMode={chatMode} setChatMode={setChatMode} model={model} provider={provider} chatId={chatId} html>
           {content}
         </Markdown>
         {toolInvocations && toolInvocations.length > 0 && (

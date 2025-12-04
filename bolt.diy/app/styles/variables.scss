@@ -362,6 +362,16 @@
 
   --bolt-menu-offset: 0px;
 
+  /* Chat layout constraints */
+  --chat-max-width: clamp(320px, 70vw, 880px);
+  --chat-min-width: clamp(280px, 55vw, 640px);
+
+  /* Workbench layout - 50/50 split */
+  --header-height: 54px;
+  --workbench-width: 50%;
+  --workbench-inner-width: var(--workbench-width);
+  --workbench-left: 50%;
+
   /* --- TERMINAL COLOR SYSTEM --- */
   --bolt-terminal-background: #070e1a;
   --bolt-terminal-foreground: #e2e8f0;

@@ -978,31 +978,56 @@ export const Preview = memo(({ setSelectedElement }: PreviewProps) => {
                       }}
                     />
 
-                    <iframe
-                      ref={iframeRef}
-                      title="preview"
-                      style={{
-                        border: 'none',
+                    {iframeUrl ? (
+                      <iframe
+                        key={iframeUrl}
+                        ref={iframeRef}
+                        title="preview"
+                        style={{
+                          border: 'none',
+                          width: isLandscape ? `${selectedWindowSize.height}px` : `${selectedWindowSize.width}px`,
+                          height: isLandscape ? `${selectedWindowSize.width}px` : `${selectedWindowSize.height}px`,
+                          background: 'white',
+                          display: 'block',
+                        }}
+                        src={iframeUrl}
+                        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
+                        allow="cross-origin-isolated"
+                      />
+                    ) : (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         width: isLandscape ? `${selectedWindowSize.height}px` : `${selectedWindowSize.width}px`,
                         height: isLandscape ? `${selectedWindowSize.width}px` : `${selectedWindowSize.height}px`,
                         background: 'white',
-                        display: 'block',
-                      }}
-                      src={iframeUrl}
-                      sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
-                      allow="cross-origin-isolated"
-                    />
+                        color: '#999',
+                        fontSize: '14px',
+                      }}>
+                        Loading...
+                      </div>
+                    )}
                   </div>
                 </div>
-              ) : (
+              ) : iframeUrl ? (
                 <iframe
+                  key={iframeUrl}
                   ref={iframeRef}
                   title="preview"
                   className="border-none w-full h-full bg-bolt-elements-background-depth-1"
                   src={iframeUrl}
-                  sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin"
+                  sandbox="allow-scripts allow-forms allow-popups allow-modals allow-storage-access-by-user-activation allow-same-origin allow-top-navigation"
                   allow="geolocation; ch-ua-full-version-list; cross-origin-isolated; screen-wake-lock; publickey-credentials-get; shared-storage-select-url; ch-ua-arch; bluetooth; compute-pressure; ch-prefers-reduced-transparency; deferred-fetch; usb; ch-save-data; publickey-credentials-create; shared-storage; deferred-fetch-minimal; run-ad-auction; ch-ua-form-factors; ch-downlink; otp-credentials; payment; ch-ua; ch-ua-model; ch-ect; autoplay; camera; private-state-token-issuance; accelerometer; ch-ua-platform-version; idle-detection; private-aggregation; interest-cohort; ch-viewport-height; local-fonts; ch-ua-platform; midi; ch-ua-full-version; xr-spatial-tracking; clipboard-read; gamepad; display-capture; keyboard-map; join-ad-interest-group; ch-width; ch-prefers-reduced-motion; browsing-topics; encrypted-media; gyroscope; serial; ch-rtt; ch-ua-mobile; window-management; unload; ch-dpr; ch-prefers-color-scheme; ch-ua-wow64; attribution-reporting; fullscreen; identity-credentials-get; private-state-token-redemption; hid; ch-ua-bitness; storage-access; sync-xhr; ch-device-memory; ch-viewport-width; picture-in-picture; magnetometer; clipboard-write; microphone"
                 />
+              ) : (
+                <div className="flex w-full h-full justify-center items-center bg-bolt-elements-background-depth-1 text-bolt-elements-textSecondary">
+                  <div className="text-center">
+                    <div className="text-4xl mb-4">📱</div>
+                    <p>Loading preview...</p>
+                    <p className="text-xs mt-2 text-bolt-elements-textSecondary">Make sure preview server is running: npm run dev</p>
+                  </div>
+                </div>
               )}
               <ScreenshotSelector
                 isSelectionMode={isSelectionMode}
@@ -1047,3 +1072,5 @@ export const Preview = memo(({ setSelectedElement }: PreviewProps) => {
     </div>
   );
 });
+
+Preview.displayName = 'Preview';

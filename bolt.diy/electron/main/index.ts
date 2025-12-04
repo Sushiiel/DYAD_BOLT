@@ -12,6 +12,15 @@ import { createWindow } from './ui/window';
 import { initCookies, storeCookies } from './utils/cookie';
 import { loadServerBuild, serveAsset } from './utils/serve';
 import { reloadOnChange } from './utils/reload';
+const { ipcMain } = require('electron');
+const appService = require('../../app/lib/services/appGenerationService'); // adjust path to actual
+
+ipcMain.handle('get-last-generated-app-directory', async () => {
+  return appService.getLastGeneratedAppDirectory();
+});
+ipcMain.handle('get-last-preview-error', async () => {
+  return appService.getLastPreviewError();
+});
 
 Object.assign(console, log.functions);
 

@@ -89,14 +89,45 @@ export const languageModels = sqliteTable("language_models", {
   updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
 });
 
+// =================== AUTHENTICATION ===================
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey().notNull(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name"),
+  createdAt: integer("created_at").default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
+});
+
+export const userCredentials = sqliteTable("user_credentials", {
+  id: text("id").primaryKey().notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialType: text("credential_type", {
+    enum: ["github_token", "vercel_token", "vercel_org_id", "vercel_project_id"],
+  }).notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  iv: text("iv").notNull(),
+  createdAt: integer("created_at").default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
+});
+
 // =================== BOLT PROJECTS ===================
 
 export const boltProjects = sqliteTable("bolt_projects", {
   id: text("id").primaryKey().notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
   template: text("template"),
   framework: text("framework"),
+  repositoryUrl: text("repository_url"),
+  deploymentUrl: text("deployment_url"),
+  vercelProjectId: text("vercel_project_id"),
   devServerPort: integer("dev_server_port"),
   devServerPid: integer("dev_server_pid"),
   isRunning: integer("is_running", { mode: "boolean" }).default(false),
@@ -106,6 +137,9 @@ export const boltProjects = sqliteTable("bolt_projects", {
 
 export const boltFiles = sqliteTable("bolt_files", {
   id: text("id").primaryKey().notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   projectId: text("project_id")
     .notNull()
     .references(() => boltProjects.id, { onDelete: "cascade" }),
@@ -113,6 +147,85 @@ export const boltFiles = sqliteTable("bolt_files", {
   content: text("content").notNull(),
   type: text("type").default("file").notNull(),
   createdAt: integer("created_at").default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
+});
+
+// =================== DEPLOYMENTS & ANALYTICS ===================
+
+export const deployments = sqliteTable("deployments", {
+  id: text("id").primaryKey().notNull(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => boltProjects.id, { onDelete: "cascade" }),
+  platform: text("platform", {
+    enum: ["vercel", "netlify", "cloudflare", "railway", "github-pages"],
+  }).notNull(),
+  status: text("status", {
+    enum: ["pending", "building", "success", "failed", "cancelled"],
+  })
+    .notNull()
+    .default("pending"),
+  environment: text("environment", {
+    enum: ["production", "preview", "development"],
+  })
+    .notNull()
+    .default("production"),
+  deploymentUrl: text("deployment_url"),
+  buildTime: integer("build_time"), // in seconds
+  bundleSize: integer("bundle_size"), // in bytes
+  errorMessage: text("error_message"),
+  metadata: text("metadata"), // JSON string for platform-specific data
+  createdAt: integer("created_at").default(sql`(unixepoch())`).notNull(),
+  completedAt: integer("completed_at"),
+});
+
+export const analytics = sqliteTable("analytics", {
+  id: text("id").primaryKey().notNull(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => boltProjects.id, { onDelete: "cascade" }),
+  deploymentId: text("deployment_id").references(() => deployments.id, {
+    onDelete: "cascade",
+  }),
+  metricType: text("metric_type", {
+    enum: ["lighthouse", "error", "performance", "usage", "cost"],
+  }).notNull(),
+  metricName: text("metric_name").notNull(),
+  metricValue: text("metric_value").notNull(), // stored as text, parse as needed
+  metadata: text("metadata"), // JSON string for additional data
+  recordedAt: integer("recorded_at").default(sql`(unixepoch())`).notNull(),
+});
+
+export const platformConfigs = sqliteTable("platform_configs", {
+  id: text("id").primaryKey().notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  platform: text("platform", {
+    enum: ["vercel", "netlify", "cloudflare", "railway", "github"],
+  }).notNull(),
+  apiKey: text("api_key"), // encrypted
+  teamId: text("team_id"),
+  accountId: text("account_id"),
+  config: text("config"), // JSON string for platform-specific config
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  createdAt: integer("created_at").default(sql`(unixepoch())`).notNull(),
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
+});
+
+export const projectStats = sqliteTable("project_stats", {
+  id: text("id").primaryKey().notNull(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => boltProjects.id, { onDelete: "cascade" })
+    .unique(),
+  totalDeployments: integer("total_deployments").default(0).notNull(),
+  successfulDeployments: integer("successful_deployments").default(0).notNull(),
+  failedDeployments: integer("failed_deployments").default(0).notNull(),
+  avgBuildTime: integer("avg_build_time").default(0), // in seconds
+  totalBuildTime: integer("total_build_time").default(0), // in seconds
+  lastDeploymentAt: integer("last_deployment_at"),
+  lastSuccessfulDeploymentAt: integer("last_successful_deployment_at"),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`).notNull(),
 });
 

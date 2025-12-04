@@ -21,10 +21,11 @@ interface MarkdownProps {
   setChatMode?: (mode: 'discuss' | 'build') => void;
   model?: string;
   provider?: ProviderInfo;
+  chatId?: string; // Add chat ID for file organization
 }
 
 export const Markdown = memo(
-  ({ children, html = false, limitedMarkdown = false, append, setChatMode, model, provider }: MarkdownProps) => {
+  ({ children, html = false, limitedMarkdown = false, append, setChatMode, model, provider, chatId }: MarkdownProps) => {
     logger.trace('Render');
 
     const components = useMemo(() => {
@@ -39,7 +40,7 @@ export const Markdown = memo(
               logger.error(`Invalid message id ${messageId}`);
             }
 
-            return <Artifact messageId={messageId} />;
+            return <Artifact messageId={messageId} chatId={chatId} />;
           }
 
           if (className?.includes('__boltSelectedElement__')) {
