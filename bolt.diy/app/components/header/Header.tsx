@@ -4,9 +4,12 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
+import { AboutModal } from './AboutModal';
+import { useState } from 'react';
 
 export function Header() {
   const chat = useStore(chatStore);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   return (
     <header
@@ -15,7 +18,11 @@ export function Header() {
         'border-white': chat.started,
       })}
     >
-      <div className="flex items-center gap-4">
+      <button
+        onClick={() => window.location.href = '/'}
+        className="flex items-center gap-4 bg-transparent hover:opacity-80 transition-opacity cursor-pointer border-none"
+        title="Go to home page"
+      >
         <div className="w-12 h-12 bg-white flex items-center justify-center border-2 border-white">
           <div className="i-ph:code-bold text-3xl text-black" />
         </div>
@@ -23,7 +30,7 @@ export function Header() {
           <span className="text-2xl font-black tracking-tighter text-white">WORKSPACE</span>
           <span className="text-[10px] text-white/60 tracking-[0.3em] uppercase font-bold">Development Environment</span>
         </div>
-      </div>
+      </button>
       {chat.started && (
         <>
           <span className="flex-1 px-6 truncate text-center text-white font-mono text-sm">
@@ -38,6 +45,19 @@ export function Header() {
           </ClientOnly>
         </>
       )}
+      {!chat.started && <div className="flex-1" />}
+
+      {/* About button - always visible */}
+      <button
+        onClick={() => setIsAboutOpen(true)}
+        className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all"
+        title="Learn about WORKSPACE"
+      >
+        <span className="i-ph:info text-base" />
+        <span>About</span>
+      </button>
+
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </header>
   );
 }

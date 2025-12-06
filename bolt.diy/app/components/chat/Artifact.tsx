@@ -297,11 +297,10 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
             className="flex items-center gap-2 px-3 py-2 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all"
             onClick={async () => {
               try {
-                const confirmProceed = confirm('Send current generated project files to Dyad?');
+                const confirmProceed = confirm('Send files to BackBench and open dashboard?');
                 if (!confirmProceed) return;
 
-                console.log('\n=== ARTIFACT SEND TO DYAD ===');
-                console.log('Using workbench store files instead of IndexedDB');
+                console.log('\n=== UPLOADING TO BACKBENCH ===');
 
                 // Get files from workbench store (current chat's files)
                 const chatFiles = workbenchStore.getFilesForChat(chatId);
@@ -312,20 +311,19 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
                 }
 
                 console.log('Files from workbench:', Object.keys(chatFiles).length);
-                console.log('File paths:', Object.keys(chatFiles));
 
                 // Convert to array format for upload
                 const files = Object.entries(chatFiles)
                   .filter(([_, fileData]) => !fileData.isBinary && fileData.content)
                   .map(([path, fileData]) => ({
-                    path: path, // Already normalized by getFilesForChat
+                    path: path,
                     content: fileData.content
                   }));
 
                 console.log('Files to upload:', files.length);
 
-                const projectId = prompt('Project ID for Dyad (leave blank to auto-generate):', `bolt-${Math.random().toString(36).slice(2, 9)}`) || undefined;
-                const projectName = prompt('Project name:', artifact?.title ?? document.title ?? 'bolt-generated-app') || undefined;
+                const projectId = `bolt-${Math.random().toString(36).slice(2, 9)}`;
+                const projectName = artifact?.title ?? document.title ?? 'bolt-generated-app';
 
                 const resp = await fetch(`${VITE_DYAD_BACKEND_URL}/api/sync/files`, {
                   method: 'POST',
@@ -342,22 +340,24 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
 
                 if (!resp.ok) {
                   const txt = await resp.text().catch(() => '<no body>');
-                  console.error('Dyad upload failed', resp.status, txt);
+                  console.error('BackBench upload failed', resp.status, txt);
                   alert(`Upload failed: ${resp.status} — check console`);
                 } else {
                   const json = await resp.json().catch(() => null);
-                  console.log('Dyad upload response', json);
-                  alert('Upload complete — check Dyad UI');
+                  console.log('BackBench upload response', json);
+
+                  // Redirect to BackBench UI
+                  window.open(VITE_DYAD_BACKEND_URL, '_blank');
                 }
               } catch (err) {
-                console.error('Send-to-Dyad error', err);
-                alert('Error sending to Dyad — see console');
+                console.error('BackBench upload error', err);
+                alert('Error uploading to BackBench — see console');
               }
             }}
-            title="Send generated files to Dyad server"
+            title="Upload to BackBench and open dashboard"
           >
             <span className="i-ph:upload text-base"></span>
-            <span>Dyad</span>
+            <span>BackBench</span>
           </button>
 
           {artifact.type !== 'bundled' && <div className="bg-bolt-elements-artifacts-borderColor w-[1px]" />}
