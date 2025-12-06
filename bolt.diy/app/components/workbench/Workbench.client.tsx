@@ -389,7 +389,7 @@ export const Workbench = memo(
       >
         <div
           className={classNames(
-            'fixed top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier bg-black',
+            'fixed top-[calc(var(--header-height)+1.2rem)] bottom-6 w-[var(--workbench-inner-width)] z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier bg-bolt-elements-bg-depth-2',
             {
               'w-full': isSmallViewport,
               'left-0': showWorkbench && isSmallViewport,
@@ -399,10 +399,10 @@ export const Workbench = memo(
           )}
         >
           <div className="absolute inset-0 px-2 lg:px-4">
-            <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
-              <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor gap-1.5">
+            <div className="h-full flex flex-col bg-black border-4 border-white shadow-xl rounded-none overflow-hidden">
+              <div className="flex items-center px-4 py-3 border-b-4 border-white gap-2 bg-black">
                 <button
-                  className={`${showChat ? 'i-ph:sidebar-simple-fill' : 'i-ph:sidebar-simple'} text-lg text-bolt-elements-textSecondary mr-1`}
+                  className={`${showChat ? 'i-ph:sidebar-simple-fill' : 'i-ph:sidebar-simple'} text-xl text-white hover:text-white/80 transition-colors`}
                   disabled={!canHideChat || isSmallViewport}
                   onClick={() => {
                     if (canHideChat) {
@@ -413,48 +413,47 @@ export const Workbench = memo(
                 <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
                 <div className="ml-auto" />
                 {selectedView === 'code' && (
-                  <div className="flex overflow-y-auto">
-                    <PanelHeaderButton
-                      className="mr-1 text-sm"
+                  <div className="flex overflow-y-auto gap-2">
+                    <button
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all"
                       onClick={() => {
                         workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
                       }}
                     >
-                      <div className="i-ph:terminal" />
-                      Toggle Terminal
-                    </PanelHeaderButton>
+                      <div className="i-ph:terminal text-base" />
+                      Terminal
+                    </button>
                     <DropdownMenu.Root>
-                      <DropdownMenu.Trigger className="text-sm flex items-center gap-1 text-bolt-elements-item-contentDefault bg-transparent enabled:hover:text-bolt-elements-item-contentActive rounded-md p-1 enabled:hover:bg-bolt-elements-item-backgroundActive disabled:cursor-not-allowed">
-                        <div className="i-ph:box-arrow-up" />
+                      <DropdownMenu.Trigger className="flex items-center gap-2 px-3 py-1.5 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all">
+                        <div className="i-ph:box-arrow-up text-base" />
                         Sync
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Content
                         className={classNames(
                           'min-w-[240px] z-[250]',
-                          'bg-white dark:bg-[#141414]',
-                          'rounded-lg shadow-lg',
-                          'border border-gray-200/50 dark:border-gray-800/50',
+                          'bg-black border-4 border-white',
+                          'rounded-none shadow-xl',
                           'animate-in fade-in-0 zoom-in-95',
-                          'py-1',
+                          'py-2',
                         )}
                         sideOffset={5}
                         align="end"
                       >
                         <DropdownMenu.Item
                           className={classNames(
-                            'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
+                            'cursor-pointer flex items-center w-full px-4 py-2.5 text-sm font-medium text-white hover:bg-white hover:text-black gap-2 transition-colors',
                           )}
                           onClick={handleSyncFiles}
                           disabled={isSyncing}
                         >
                           <div className="flex items-center gap-2">
-                            {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
+                            {isSyncing ? <div className="i-ph:spinner animate-spin" /> : <div className="i-ph:cloud-arrow-down" />}
                             <span>{isSyncing ? 'Syncing...' : 'Sync Files'}</span>
                           </div>
                         </DropdownMenu.Item>
                         <DropdownMenu.Item
                           className={classNames(
-                            'cursor-pointer flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md group relative',
+                            'cursor-pointer flex items-center w-full px-4 py-2.5 text-sm font-medium text-white hover:bg-white hover:text-black gap-2 transition-colors',
                           )}
                           onClick={() => setIsPushDialogOpen(true)}
                         >
@@ -471,16 +470,16 @@ export const Workbench = memo(
                 {selectedView === 'diff' && (
                   <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
                 )}
-                <IconButton
-                  icon="i-ph:x-circle"
-                  className="-mr-1"
-                  size="xl"
+                <button
+                  className="text-white hover:text-white/80 transition-colors text-2xl"
                   onClick={() => {
                     workbenchStore.showWorkbench.set(false);
                   }}
-                />
+                >
+                  <div className="i-ph:x-circle" />
+                </button>
               </div>
-              <div className="relative flex-1 overflow-hidden">
+              <div className="relative flex-1 overflow-hidden bg-bolt-elements-bg-depth-1">
                 <GeneratedAppPreviewInitializer />
                 <div className="h-full">
                   {isWorkbenchAvailable ? (

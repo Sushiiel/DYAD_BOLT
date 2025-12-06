@@ -575,6 +575,11 @@ export class WorkbenchStore {
         fullPath = path.join(wc.workdir, fullPath);
       }
 
+      // Automatically show workbench when files are generated
+      if (!this.showWorkbench.get()) {
+        this.showWorkbench.set(true);
+      }
+
       /*
        * For scoped locks, we would need to implement diff checking here
        * to determine if the AI is modifying existing code or just adding new code

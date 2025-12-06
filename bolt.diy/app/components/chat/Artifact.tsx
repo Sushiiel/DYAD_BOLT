@@ -294,7 +294,7 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
           {/* Compact Send-to-Dyad button in header */}
           <button
             id={`send-to-dyad-btn-header-${artifact?.id ?? Math.random().toString(36).slice(2, 6)}`}
-            className="bg-white/90 hover:bg-white text-black px-3 py-2 border-l border-bolt-elements-borderColor transition-colors flex items-center justify-center text-xs"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all"
             onClick={async () => {
               try {
                 const confirmProceed = confirm('Send current generated project files to Dyad?');
@@ -356,7 +356,7 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
             }}
             title="Send generated files to Dyad server"
           >
-            <span className="i-ph:upload text-sm mr-1"></span>
+            <span className="i-ph:upload text-base"></span>
             <span>Dyad</span>
           </button>
 
@@ -390,7 +390,7 @@ export const Artifact = memo(({ messageId, chatId }: ArtifactProps) => {
                 )}
               </div>
 
-              <div className="text-bolt-elements-textPrimary font-medium leading-5 text-sm">
+              <div className="text-white font-medium leading-5 text-sm">
                 {allActionFinished ? (artifact.id === 'restored-project-setup' ? 'Restore files from snapshot' : 'Initial files created') : 'Creating initial files'}
               </div>
             </div>
@@ -503,10 +503,10 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   ) : null}
                 </div>
                 {type === 'file' ? (
-                  <div>
+                  <div className="text-white">
                     Create{' '}
                     <code
-                      className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                      className="bg-white/10 text-white px-1.5 py-1 rounded-md hover:bg-white/20 hover:underline cursor-pointer border border-white/40"
                       onClick={() => openArtifactInWorkbench(action.filePath)}
                     >
                       {action.filePath}
@@ -514,7 +514,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   </div>
                 ) : type === 'shell' ? (
                   <div className="flex items-center w-full min-h-[28px]">
-                    <span className="flex-1">Run command</span>
+                    <span className="flex-1 text-white">Run command</span>
                   </div>
                 ) : type === 'start' ? (
                   <a
@@ -522,9 +522,8 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                       e.preventDefault();
                       workbenchStore.currentView.set('preview');
                     }}
-                    className="flex items-center w-full min-h-[28px]"
-                  >
-                    <span className="flex-1">Start Application</span>
+                    className="flex items-center w-full min-h-[28px]">
+                    <span className="flex-1 text-white">Start Application</span>
                   </a>
                 ) : null}
               </div>

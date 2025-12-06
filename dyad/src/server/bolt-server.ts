@@ -4105,6 +4105,55 @@ async function deleteFile(projectId: string, filePath: string) {
 
 // ==================== Ollama AI Chat Integration ====================
 
+async function callGeminiAPI(prompt: string, context: string = '', apiKey: string): Promise<string> {
+  const models = ['gemini-1.5-flash-001', 'gemini-1.5-flash', 'gemini-2.5-pro', 'gemini-pro'];
+  const fullPrompt = context ? `${context}\n\nUser Request: ${prompt}` : prompt;
+  console.log('Gemini API Key length:', apiKey?.length);
+
+  let lastError;
+
+  for (const model of models) {
+    try {
+      console.log(`Attempting Gemini model: ${model}`);
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: fullPrompt }]
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        const errorData: any = await response.json();
+        const errorMessage = errorData.error?.message || response.statusText;
+
+        // If model not found, continue to next model
+        if (response.status === 404 || errorMessage.includes('not found') || errorMessage.includes('not supported')) {
+          console.warn(`Model ${model} failed: ${errorMessage}`);
+          lastError = new Error(`Model ${model} failed: ${errorMessage}`);
+          continue;
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const data: any = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch (error: any) {
+      console.error(`Gemini API Error (${model}):`, error);
+      lastError = error;
+      // If it's not a model not found error (e.g. auth error), might want to stop? 
+      // But for now, let's try to find a working model.
+    }
+  }
+
+  throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
+}
+
 async function callOllamaAPI(prompt: string, context: string = ''): Promise<string> {
   try {
     console.log('Calling Ollama API with model:', OLLAMA_MODEL);
@@ -4140,11 +4189,12 @@ async function callOllamaAPI(prompt: string, context: string = ''): Promise<stri
 
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const { messages, projectId, selectedFiles } = req.body;
+    const { messages, projectId, selectedFiles, geminiApiKey } = req.body;
 
     console.log(`AI Chat request for project: ${projectId}`);
     console.log(`Messages count: ${messages.length}`);
     console.log(`Selected files: ${selectedFiles ? selectedFiles.length : 'all'}`);
+    console.log(`Using Provider: Gemini`);
 
     let projectContext = '';
     if (projectId) {
@@ -4181,8 +4231,13 @@ app.post('/api/ai/chat', async (req, res) => {
       const lastMessage = messages[messages.length - 1];
       const userPrompt = lastMessage?.content || '';
 
-      console.log('Calling Ollama with context...');
-      const fullResponse = await callOllamaAPI(userPrompt, projectContext);
+      let fullResponse;
+      if (geminiApiKey) {
+        console.log('Calling Gemini with context...');
+        fullResponse = await callGeminiAPI(userPrompt, projectContext, geminiApiKey);
+      } else {
+        throw new Error('Gemini API Key is required. Please enter your API key in the chat settings.');
+      }
 
       const chunkSize = 50;
       for (let i = 0; i < fullResponse.length; i += chunkSize) {
@@ -4486,25 +4541,68 @@ async function enableGitHubPages(repoName: string, isPrivate: boolean) {
   }
 }
 
+
+async function setGitHubSecret(octokit: any, owner: string, repo: string, secretName: string, secretValue: string) {
+  try {
+    // Try to require libsodium-wrappers dynamically
+    let sodium;
+    try {
+      sodium = require('libsodium-wrappers');
+    } catch (e) {
+      console.warn('libsodium-wrappers not found. Skipping secret creation.');
+      return;
+    }
+
+    await sodium.ready;
+
+    const { data: publicKey } = await octokit.actions.getRepoPublicKey({
+      owner,
+      repo,
+    });
+
+    const binkey = sodium.from_base64(publicKey.key, sodium.base64_variants.ORIGINAL);
+    const binsec = sodium.from_string(secretValue);
+    const encBytes = sodium.crypto_box_seal(binsec, binkey);
+    const encryptedValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
+
+    await octokit.actions.createOrUpdateRepoSecret({
+      owner,
+      repo,
+      secret_name: secretName,
+      encrypted_value: encryptedValue,
+      key_id: publicKey.key_id,
+    });
+    console.log(`Set secret ${secretName} successfully`);
+  } catch (error: any) {
+    console.warn(`Failed to set secret ${secretName}:`, error.message);
+  }
+}
+
 async function deployToGitHub(
   projectId: string,
   projectName: string,
   description: string,
-  userId: string
+  userId: string,
+  userGithubToken?: string,
+  userVercelToken?: string,
+  userVercelOrgId?: string,
+  userVercelProjectId?: string
 ) {
   try {
     console.log(`Starting GitHub deployment for project: ${projectName}`);
 
     // Get user's GitHub credentials or fall back to environment variables
-    let githubToken: string | null = null;
+    let githubToken: string | null = userGithubToken || null;
 
-    if (userId === 'system') {
-      // Backward compatibility: use environment variable
-      githubToken = GITHUB_TOKEN || null;
-      console.log('Using GITHUB_TOKEN from environment variables (unauthenticated mode)');
-    } else {
-      // Authenticated user: get from database
-      githubToken = await getUserCredential(userId, 'github_token');
+    if (!githubToken) {
+      if (userId === 'system') {
+        // Backward compatibility: use environment variable
+        githubToken = GITHUB_TOKEN || null;
+        console.log('Using GITHUB_TOKEN from environment variables (unauthenticated mode)');
+      } else {
+        // Authenticated user: get from database
+        githubToken = await getUserCredential(userId, 'github_token');
+      }
     }
 
     if (!githubToken) {
@@ -4538,6 +4636,20 @@ async function deployToGitHub(
       githubOwner
     );
 
+    // Set Vercel secrets if token is provided
+    if (userVercelToken) {
+      console.log('Setting Vercel secrets in GitHub repo...');
+      const octokit = new Octokit({ auth: githubToken });
+      await setGitHubSecret(octokit, githubOwner, repoName, 'VERCEL_TOKEN', userVercelToken);
+
+      if (userVercelOrgId) {
+        await setGitHubSecret(octokit, githubOwner, repoName, 'VERCEL_ORG_ID', userVercelOrgId);
+      }
+      if (userVercelProjectId) {
+        await setGitHubSecret(octokit, githubOwner, repoName, 'VERCEL_PROJECT_ID', userVercelProjectId);
+      }
+    }
+
     // Add GitHub Actions workflow for Vercel deployment
     const workflowContent = `name: Deploy to Vercel
 
@@ -4570,8 +4682,8 @@ jobs:
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: \${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: \${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: \${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-org-id: ${userVercelOrgId || '${{ secrets.VERCEL_ORG_ID }}'}
+          vercel-project-id: ${userVercelProjectId || '${{ secrets.VERCEL_PROJECT_ID }}'}
           vercel-args: '--prod'
 `;
 
@@ -5325,11 +5437,17 @@ app.post('/api/projects/:id/push', optionalAuth, async (req: AuthRequest, res) =
     // Use userId if authenticated, otherwise use 'system' for backward compatibility
     const deployUserId = userId || 'system';
 
+    const { githubToken, vercelToken, vercelOrgId, vercelProjectId } = req.body;
+
     const result = await deployToGitHub(
       id,
       project[0].name,
       project[0].description || '',
-      deployUserId
+      deployUserId,
+      githubToken,
+      vercelToken,
+      vercelOrgId,
+      vercelProjectId
     );
 
     broadcast({
@@ -5944,6 +6062,111 @@ app.get('/api/analytics/deployment/:deploymentId', async (req, res) => {
   }
 });
 
+// Get analytics metrics for a deployment
+app.get('/api/analytics/deployment/:deploymentId/metrics', async (req, res) => {
+  try {
+    const { deploymentId } = req.params;
+    const { from, to } = req.query;
+    if (!VERCEL_TOKEN) return res.status(400).json({ error: 'Vercel token not configured' });
+    const deploymentResponse = await fetch(`https://api.vercel.com/v13/deployments/${deploymentId}`, {
+      headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` },
+    });
+    if (!deploymentResponse.ok) throw new Error(`Failed to fetch deployment: ${deploymentResponse.statusText}`);
+    const deployment: any = await deploymentResponse.json();
+    const until = to ? parseInt(to as string) : Date.now();
+    const since = from ? parseInt(from as string) : until - (24 * 60 * 60 * 1000);
+    let analyticsData = null;
+    try {
+      const analyticsResponse = await fetch(
+        `https://api.vercel.com/v1/analytics?deploymentId=${deploymentId}&from=${since}&until=${until}`,
+        { headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` } }
+      );
+      if (analyticsResponse.ok) analyticsData = await analyticsResponse.json();
+    } catch (e) { console.log('Analytics API not available (requires Pro plan)'); }
+    res.json({
+      deploymentId,
+      deploymentUrl: deployment.url ? `https://${deployment.url}` : null,
+      timeRange: { from: since, to: until },
+      analytics: analyticsData,
+      note: analyticsData ? null : 'Detailed analytics require Vercel Pro plan'
+    });
+  } catch (error: any) {
+    console.error('Error fetching deployment metrics:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch metrics' });
+  }
+});
+
+// Get runtime logs for a deployment
+app.get('/api/analytics/deployment/:deploymentId/logs', async (req, res) => {
+  try {
+    const { deploymentId } = req.params;
+    const { limit = '100', since, until } = req.query;
+    if (!VERCEL_TOKEN) return res.status(400).json({ error: 'Vercel token not configured' });
+    let queryParams = `limit=${limit}`;
+    if (since) queryParams += `&since=${since}`;
+    if (until) queryParams += `&until=${until}`;
+    const logsResponse = await fetch(
+      `https://api.vercel.com/v2/deployments/${deploymentId}/events?${queryParams}`,
+      { headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` } }
+    );
+    if (!logsResponse.ok) throw new Error(`Failed to fetch logs: ${logsResponse.statusText}`);
+    const logs = await logsResponse.json();
+    res.json({ deploymentId, logs: logs, count: Array.isArray(logs) ? logs.length : 0 });
+  } catch (error: any) {
+    console.error('Error fetching deployment logs:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch logs' });
+  }
+});
+
+// Get project analytics summary
+app.get('/api/analytics/project/:projectId/summary', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!VERCEL_TOKEN) return res.status(400).json({ error: 'Vercel token not configured' });
+    const projectResponse = await fetch(`https://api.vercel.com/v9/projects/${projectId}`, {
+      headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` },
+    });
+    if (!projectResponse.ok) throw new Error(`Failed to fetch project: ${projectResponse.statusText}`);
+    const project: any = await projectResponse.json();
+    const deploymentsResponse = await fetch(
+      `https://api.vercel.com/v6/deployments?projectId=${projectId}&limit=20`,
+      { headers: { 'Authorization': `Bearer ${VERCEL_TOKEN}` } }
+    );
+    let deployments = [];
+    if (deploymentsResponse.ok) {
+      const data: any = await deploymentsResponse.json();
+      deployments = data.deployments || [];
+    }
+    const totalDeployments = deployments.length;
+    const successfulDeployments = deployments.filter((d: any) => d.state === 'READY').length;
+    const failedDeployments = deployments.filter((d: any) => d.state === 'ERROR').length;
+    const buildTimes = deployments
+      .filter((d: any) => d.buildingAt && d.ready)
+      .map((d: any) => (new Date(d.ready).getTime() - new Date(d.buildingAt).getTime()) / 1000);
+    const avgBuildTime = buildTimes.length > 0
+      ? Math.floor(buildTimes.reduce((a, b) => a + b, 0) / buildTimes.length) : 0;
+    res.json({
+      projectId,
+      projectName: project.name,
+      framework: project.framework,
+      totalDeployments,
+      successfulDeployments,
+      failedDeployments,
+      averageBuildTime: avgBuildTime,
+      recentDeployments: deployments.slice(0, 10).map((d: any) => ({
+        id: d.uid,
+        url: d.url ? `https://${d.url}` : null,
+        state: d.state,
+        createdAt: d.created,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error fetching project summary:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch project summary' });
+  }
+});
+
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -6280,6 +6503,22 @@ app.get('/dyad', (req, res) => {
             animation: fadeIn 0.3s ease;
         }
         
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -6532,6 +6771,7 @@ app.get('/dyad', (req, res) => {
 <body>
     <div id="root"></div>
     <script type="text/babel">
+        const VITE_DYAD_BACKEND_URL = "${VITE_DYAD_BACKEND_URL}";
         const { useState, useEffect, useRef } = React;
 
         function App() {
@@ -6550,9 +6790,16 @@ app.get('/dyad', (req, res) => {
             const [notifications, setNotifications] = useState([]);
             const [deployingProjects, setDeployingProjects] = useState({});
             const [selectedFiles, setSelectedFiles] = useState([]);
+            const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+
+            useEffect(() => {
+                localStorage.setItem('gemini_api_key', geminiApiKey);
+            }, [geminiApiKey]);
             
             // New state for deployments and analytics
             const [recentDeployments, setRecentDeployments] = useState([]);
+            const [showDeployModal, setShowDeployModal] = useState(false);
+            const [deployProjectTarget, setDeployProjectTarget] = useState(null);
             const [projectStats, setProjectStats] = useState(null);
             const [analyticsOverview, setAnalyticsOverview] = useState(null);
             const [allDeployments, setAllDeployments] = useState([]);
@@ -6668,23 +6915,65 @@ app.get('/dyad', (req, res) => {
                 }
             };
 
-            const deployToGitHub = async (projectId) => {
-                try {
-                    setDeployingProjects(prev => ({...prev, [projectId]: true}));
-                    const response = await axios.post(\`${VITE_DYAD_BACKEND_URL}/api/projects/\${projectId}/push\`);
-                    addNotification('success', \`Deployed to: \${response.data.repositoryUrl}\`);
-                    await loadProjects();
-                } catch (error) {
-                    addNotification('error', 'Deployment failed');
-                } finally {
-                    setDeployingProjects(prev => {
-                        const newState = {...prev};
-                        delete newState[projectId];
-                        return newState;
-                    });
-                }
+            const deployToGitHub = (projectId) => {
+                setDeployProjectTarget(projectId);
+                setShowDeployModal(true);
             };
 
+            const handleDeploy = async (credentials) => {
+                console.log('🚀 handleDeploy called');
+                console.log('📦 Deploy target:', deployProjectTarget);
+                console.log('🔑 Credentials:', {
+                    hasGithubToken: !!credentials?.githubToken,
+                    hasVercelToken: !!credentials?.vercelToken,
+                    hasVercelOrgId: !!credentials?.vercelOrgId,
+                    hasVercelProjectId: !!credentials?.vercelProjectId
+                });
+                
+                if (!deployProjectTarget) {
+                    console.error('❌ No deploy target set');
+                    return;
+                }
+
+                try {
+                    console.log('✅ Setting deploying state...');
+                    setDeployingProjects(prev => ({...prev, [deployProjectTarget]: true}));
+                    setShowDeployModal(false);
+                    
+                    const url = VITE_DYAD_BACKEND_URL + '/api/projects/' + deployProjectTarget + '/push';
+                    console.log('🌐 Making request to:', url);
+                    console.log('📤 Request payload:', credentials);
+                    
+                    addNotification('info', 'Starting deployment...');
+                    
+                    const response = await axios.post(url, {
+                        ...credentials
+                    });
+                    
+                    console.log('✅ Deploy response:', response.data);
+                    addNotification('success', 'Project deployed to GitHub & Vercel!');
+                    
+                    // Update project with new deployment info if needed
+                    if (selectedProject?.id === deployProjectTarget) {
+                        // maybe reload project?
+                    }
+                } catch (error) {
+                    console.error('❌ Deploy error:', error);
+                    console.error('❌ Error details:', {
+                        message: error.message,
+                        response: error.response?.data,
+                        status: error.response?.status,
+                        stack: error.stack
+                    });
+                    
+                    const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message || 'Unknown error';
+                    addNotification('error', 'Failed to deploy: ' + errorMessage);
+                } finally {
+                    console.log('🏁 Deploy finished, cleaning up...');
+                    setDeployingProjects(prev => ({...prev, [deployProjectTarget]: false}));
+                    setDeployProjectTarget(null);
+                }
+            };
             const sendChatMessage = async () => {
                 if (!chatInput.trim() || !selectedProject) return;
                 
@@ -6692,6 +6981,15 @@ app.get('/dyad', (req, res) => {
                 setChatInput('');
                 setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
                 setIsTyping(true);
+                
+                if (geminiApiKey) {
+                    addNotification('info', 'Using Gemini AI...');
+                } else {
+                    addNotification('error', 'Gemini API Key is required!');
+                    setChatMessages(prev => [...prev, { role: 'assistant', content: 'Please enter your Gemini API Key to continue.' }]);
+                    setIsTyping(false);
+                    return;
+                }
 
                 try {
                     const response = await fetch(\`${VITE_DYAD_BACKEND_URL}/api/ai/chat\`, {
@@ -6700,12 +6998,13 @@ app.get('/dyad', (req, res) => {
                         body: JSON.stringify({
                             messages: [...chatMessages, { role: 'user', content: userMessage }],
                             projectId: selectedProject.id,
-                            selectedFiles: selectedFiles
+                            selectedFiles: selectedFiles,
+                            geminiApiKey: geminiApiKey
                         })
                     });
 
                     if (!response.ok || !response.body) {
-                        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Error connecting to Ollama' }]);
+                        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Error connecting to AI service' }]);
                         setIsTyping(false);
                         return;
                     }
@@ -6788,9 +7087,25 @@ app.get('/dyad', (req, res) => {
             const loadDeploymentDetails = async (deploymentId) => {
                 try {
                     setLoading(true);
-                    const response = await axios.get(\`${VITE_DYAD_BACKEND_URL}/api/analytics/deployment/\${deploymentId}\`);
-                    setDeploymentDetails(response.data);
-                    setSelectedDeployment(response.data);
+                    
+                    // Fetch details first
+                    const detailsRes = await axios.get(\`\${VITE_DYAD_BACKEND_URL}/api/analytics/deployment/\${deploymentId}\`);
+                    
+                    let logs = [];
+                    try {
+                        const logsRes = await axios.get(\`\${VITE_DYAD_BACKEND_URL}/api/analytics/deployment/\${deploymentId}/logs\`);
+                        logs = logsRes.data.logs || [];
+                    } catch (e) {
+                        console.warn('Failed to load logs:', e);
+                    }
+                    
+                    const details = {
+                        ...detailsRes.data,
+                        logs
+                    };
+
+                    setDeploymentDetails(details);
+                    setSelectedDeployment(details);
                 } catch (error) {
                     console.error('Failed to load deployment details:', error);
                     addNotification('error', 'Failed to load deployment details');
@@ -6863,6 +7178,8 @@ app.get('/dyad', (req, res) => {
                                     selectedFiles={selectedFiles}
                                     toggleFileSelection={toggleFileSelection}
                                     selectAllFiles={selectAllFiles}
+                                    geminiApiKey={geminiApiKey}
+                                    setGeminiApiKey={setGeminiApiKey}
                                 />
                             )}
                             {activeTab === 'analytics' && (
@@ -6877,6 +7194,8 @@ app.get('/dyad', (req, res) => {
                                     loadProjectAnalytics={loadProjectAnalytics}
                                     loadDeploymentDetails={loadDeploymentDetails}
                                     loading={loading}
+                                    setSelectedDeployment={setSelectedDeployment}
+                                    setDeploymentDetails={setDeploymentDetails}
                                 />
                             )}
                         </div>
@@ -6886,6 +7205,16 @@ app.get('/dyad', (req, res) => {
                         <CreateProjectModal 
                             onCreate={createProject}
                             onClose={() => setShowCreateModal(false)}
+                        />
+                    )}
+                    {showDeployModal && (
+                        <DeployModal 
+                            onClose={() => {
+                                setShowDeployModal(false);
+                                setDeployProjectTarget(null);
+                            }}
+                            onDeploy={handleDeploy}
+                            loading={deployingProjects[deployProjectTarget]}
                         />
                     )}
                 </div>
@@ -7092,10 +7421,23 @@ app.get('/dyad', (req, res) => {
             );
         }
 
-        function ChatTab({ messages, chatInput, setChatInput, sendMessage, isTyping, selectedProject, chatEndRef, files, selectedFiles, toggleFileSelection, selectAllFiles }) {
+        function ChatTab({ messages, chatInput, setChatInput, sendMessage, isTyping, selectedProject, chatEndRef, files, selectedFiles, toggleFileSelection, selectAllFiles, geminiApiKey, setGeminiApiKey }) {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <h2 style={{ color: 'white', marginBottom: '1rem' }}>Ollama AI Chat - {selectedProject.name}</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h2 style={{ color: 'white', margin: 0 }}>Gemini AI Chat - {selectedProject.name}</h2>
+                    </div>
+                    
+                    <div style={{ marginBottom: '1rem' }}>
+                        <input
+                            type="password"
+                            className="input"
+                            placeholder="Enter Gemini API Key (required)"
+                            value={geminiApiKey}
+                            onChange={(e) => setGeminiApiKey(e.target.value)}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
                     
                     <div className="file-selector">
                         <div className="file-selector-header">
@@ -7158,7 +7500,7 @@ app.get('/dyad', (req, res) => {
             );
         }
 
-        function AnalyticsTab({ allDeployments, selectedAnalyticsProject, setSelectedAnalyticsProject, projectStats, selectedDeployment, deploymentDetails, loadAllDeployments, loadProjectAnalytics, loadDeploymentDetails, loading }) {
+        function AnalyticsTab({ allDeployments, selectedAnalyticsProject, setSelectedAnalyticsProject, projectStats, selectedDeployment, deploymentDetails, loadAllDeployments, loadProjectAnalytics, loadDeploymentDetails, loading, setSelectedDeployment, setDeploymentDetails }) {
             useEffect(() => {
                 loadAllDeployments();
             }, []);
@@ -7180,7 +7522,7 @@ app.get('/dyad', (req, res) => {
                 if (!seconds) return 'N/A';
                 const mins = Math.floor(seconds / 60);
                 const secs = seconds % 60;
-                return `${ mins }m ${ secs }s`;
+                return \`\${mins}m \${secs}s\`;
             };
 
             const getStateColor = (state) => {
@@ -7210,25 +7552,27 @@ app.get('/dyad', (req, res) => {
                     <h2 style={{ color: 'white', marginBottom: '1.5rem' }}>Deployment Analytics</h2>
                     
                     {/* Project Selector */}
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem' }}>
-                            Select Project:
-                        </label>
-                        <select 
-                            className="input"
-                            value={selectedAnalyticsProject || ''}
-                            onChange={(e) => setSelectedAnalyticsProject(e.target.value)}
-                            style={{ width: '100%', maxWidth: '400px' }}
-                        >
-                            <option value="">All Projects</option>
-                            {uniqueProjects.map(projectId => (
-                                <option key={projectId} value={projectId}>{projectId}</option>
-                            ))}
-                        </select>
-                    </div>
+                    {!deploymentDetails && (
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem' }}>
+                                Select Project:
+                            </label>
+                            <select 
+                                className="input"
+                                value={selectedAnalyticsProject || ''}
+                                onChange={(e) => setSelectedAnalyticsProject(e.target.value)}
+                                style={{ width: '100%', maxWidth: '400px' }}
+                            >
+                                <option value="">All Projects</option>
+                                {uniqueProjects.map(projectId => (
+                                    <option key={projectId} value={projectId}>{projectId}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* Overview Cards */}
-                    {projectStats && (
+                    {projectStats && !deploymentDetails && (
                         <div style={{ 
                             display: 'grid', 
                             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
@@ -7292,16 +7636,18 @@ app.get('/dyad', (req, res) => {
 
                     {/* Deployments List */}
                     <div style={{ flex: 1, overflowY: 'auto' }}>
-                        <h3 style={{ color: 'white', marginBottom: '1rem' }}>
-                            {selectedAnalyticsProject ? 'Project Deployments' : 'All Deployments'}
-                        </h3>
+                        {!deploymentDetails && (
+                            <h3 style={{ color: 'white', marginBottom: '1rem' }}>
+                                {selectedAnalyticsProject ? 'Project Deployments' : 'All Deployments'}
+                            </h3>
+                        )}
                         
                         {loading ? (
                             <div style={{ textAlign: 'center', color: 'white', padding: '2rem' }}>
                                 <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem' }}></i>
                                 <div style={{ marginTop: '1rem' }}>Loading analytics...</div>
                             </div>
-                        ) : (
+                        ) : !deploymentDetails ? (
                             <div style={{ 
                                 background: 'rgba(0, 0, 0, 0.3)', 
                                 borderRadius: '8px', 
@@ -7389,7 +7735,7 @@ app.get('/dyad', (req, res) => {
                                     </div>
                                 )}
                             </div>
-                        )}
+                        ) : null}
 
                         {/* Deployment Details */}
                         {deploymentDetails && (
@@ -7404,14 +7750,32 @@ app.get('/dyad', (req, res) => {
                                     <h3 style={{ color: 'white', margin: 0 }}>Deployment Details</h3>
                                     <button 
                                         className="btn btn-secondary"
-                                        onClick={() => setSelectedDeployment(null)}
+                                        onClick={() => {
+                                            setSelectedDeployment(null);
+                                            setDeploymentDetails(null);
+                                        }}
                                         style={{ fontSize: '0.875rem' }}
                                     >
                                         Close
                                     </button>
                                 </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                {deploymentDetails.url && (
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <a 
+                                            href={deploymentDetails.url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="btn btn-primary"
+                                            style={{ width: '100%', textAlign: 'center' }}
+                                        >
+                                            <i className="fas fa-external-link-alt" style={{ marginRight: '0.5rem' }}></i>
+                                            Visit Deployment
+                                        </a>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                                     <div>
                                         <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Deployment ID</div>
                                         <div style={{ color: 'white', fontSize: '0.875rem', fontFamily: 'monospace' }}>{deploymentDetails.id}</div>
@@ -7432,58 +7796,187 @@ app.get('/dyad', (req, res) => {
                                     </div>
                                 </div>
 
-                                {deploymentDetails.meta && (
+                                {(deploymentDetails.source || deploymentDetails.meta) && (
                                     <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                                        <h4 style={{ color: 'white', marginBottom: '0.75rem' }}>Git Information</h4>
-                                        <div style={{ display: 'grid', gap: '0.5rem' }}>
-                                            {deploymentDetails.meta.githubCommitSha && (
+                                        <h4 style={{ color: 'white', marginBottom: '0.75rem' }}>Source & Target</h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                            <div>
+                                                <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Commit</div>
+                                                <div style={{ color: 'white', fontSize: '0.875rem', fontFamily: 'monospace' }}>
+                                                    {(deploymentDetails.source?.commit || deploymentDetails.meta?.githubCommitSha || '').substring(0, 7) || 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Branch</div>
+                                                <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                    {deploymentDetails.source?.branch || deploymentDetails.meta?.githubCommitRef || 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div style={{ gridColumn: 'span 2' }}>
+                                                <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Message</div>
+                                                <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                    {deploymentDetails.source?.message || deploymentDetails.meta?.githubCommitMessage || 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Author</div>
+                                                <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                    {deploymentDetails.source?.author || deploymentDetails.meta?.githubCommitAuthorName || 'N/A'}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Target</div>
+                                                <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                    {deploymentDetails.target || 'production'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(deploymentDetails.regions?.length > 0 || deploymentDetails.routes?.length > 0) && (
+                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                        <h4 style={{ color: 'white', marginBottom: '0.75rem' }}>Configuration</h4>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                            {deploymentDetails.regions?.length > 0 && (
                                                 <div>
-                                                    <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Commit: </span>
-                                                    <span style={{ color: 'white', fontSize: '0.875rem', fontFamily: 'monospace' }}>
-                                                        {deploymentDetails.meta.githubCommitSha.substring(0, 7)}
-                                                    </span>
+                                                    <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Regions</div>
+                                                    <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                        {deploymentDetails.regions.join(', ')}
+                                                    </div>
                                                 </div>
                                             )}
-                                            {deploymentDetails.meta.githubCommitMessage && (
+                                            {deploymentDetails.routes?.length > 0 && (
                                                 <div>
-                                                    <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Message: </span>
-                                                    <span style={{ color: 'white', fontSize: '0.875rem' }}>
-                                                        {deploymentDetails.meta.githubCommitMessage}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            {deploymentDetails.meta.githubCommitAuthorName && (
-                                                <div>
-                                                    <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Author: </span>
-                                                    <span style={{ color: 'white', fontSize: '0.875rem' }}>
-                                                        {deploymentDetails.meta.githubCommitAuthorName}
-                                                    </span>
+                                                    <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Routes</div>
+                                                    <div style={{ color: 'white', fontSize: '0.875rem' }}>
+                                                        {deploymentDetails.routes.length} configured
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 )}
 
-                                {deploymentDetails.url && (
-                                    <div style={{ marginTop: '1rem' }}>
-                                        <a 
-                                            href={deploymentDetails.url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="btn btn-primary"
-                                            style={{ width: '100%', textAlign: 'center' }}
-                                        >
-                                            <i className="fas fa-external-link-alt" style={{ marginRight: '0.5rem' }}></i>
-                                            Visit Deployment
-                                        </a>
+                                {deploymentDetails.logs && deploymentDetails.logs.length > 0 && (
+                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                        <h4 style={{ color: 'white', marginBottom: '0.75rem' }}>Build Logs</h4>
+                                        <div style={{ 
+                                            background: '#1a1a1a', 
+                                            padding: '1rem', 
+                                            borderRadius: '4px', 
+                                            maxHeight: '300px', 
+                                            overflowY: 'auto',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.8rem',
+                                            color: '#e5e7eb'
+                                        }}>
+                                            {deploymentDetails.logs.map((log, i) => (
+                                                <div key={i} style={{ marginBottom: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                                                    <span style={{ color: '#6b7280', marginRight: '0.5rem' }}>
+                                                        {new Date(log.created || log.date).toLocaleTimeString()}
+                                                    </span>
+                                                    <span style={{ 
+                                                        color: log.type === 'error' ? '#ef4444' : 
+                                                               log.type === 'warning' ? '#f59e0b' : '#e5e7eb' 
+                                                    }}>
+                                                        {log.text || log.message || log.info || JSON.stringify(log)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         )}
+
                     </div>
                 </div>
             );
         }
+        function DeployModal({ onClose, onDeploy, loading }) {
+            const [githubToken, setGithubToken] = useState('');
+            const [vercelToken, setVercelToken] = useState('');
+            const [vercelOrgId, setVercelOrgId] = useState('');
+            const [vercelProjectId, setVercelProjectId] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onDeploy({ githubToken, vercelToken, vercelOrgId, vercelProjectId });
+            };
+
+            return (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>Deploy to GitHub & Vercel</h3>
+                        <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                            Leave fields empty to use environment variables
+                        </p>
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>
+                                    GitHub Token <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>(optional)</span>
+                                </label>
+                                <input 
+                                    type="password" 
+                                    className="input" 
+                                    value={githubToken} 
+                                    onChange={e => setGithubToken(e.target.value)}
+                                    placeholder="ghp_... (or use GITHUB_TOKEN env var)"
+                                    style={{ width: '100%', marginBottom: '1rem' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>
+                                    Vercel Token <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>(optional)</span>
+                                </label>
+                                <input 
+                                    type="password" 
+                                    className="input" 
+                                    value={vercelToken} 
+                                    onChange={e => setVercelToken(e.target.value)}
+                                    placeholder="Leave empty to use VERCEL_TOKEN env var"
+                                    style={{ width: '100%', marginBottom: '1rem' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>
+                                    Vercel Org ID <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>(optional)</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    className="input" 
+                                    value={vercelOrgId} 
+                                    onChange={e => setVercelOrgId(e.target.value)}
+                                    placeholder="Leave empty to use VERCEL_ORG_ID env var"
+                                    style={{ width: '100%', marginBottom: '1rem' }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>
+                                    Vercel Project ID <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>(optional)</span>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    className="input" 
+                                    value={vercelProjectId} 
+                                    onChange={e => setVercelProjectId(e.target.value)}
+                                    placeholder="Leave empty to use VERCEL_PROJECT_ID env var"
+                                    style={{ width: '100%', marginBottom: '1rem' }}
+                                />
+                            </div>
+                            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+                                <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" disabled={loading}>
+                                    {loading ? 'Deploying...' : 'Deploy'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
 
         function CreateProjectModal({ onCreate, onClose }) {
             const [data, setData] = useState({ name: '', description: '', framework: 'react' });

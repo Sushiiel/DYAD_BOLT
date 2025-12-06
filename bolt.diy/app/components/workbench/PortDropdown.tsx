@@ -49,36 +49,30 @@ export const PortDropdown = memo(
       <div className="relative z-port-dropdown" ref={dropdownRef}>
         {/* Display the active port if available, otherwise show the plug icon */}
         <button
-          className="flex items-center group-focus-within:text-bolt-elements-preview-addressBar-text bg-white group-focus-within:bg-bolt-elements-preview-addressBar-background dark:bg-bolt-elements-preview-addressBar-backgroundHover rounded-full px-2 py-1 gap-1.5"
+          className="flex items-center bg-white hover:bg-white/90 rounded-full px-3 py-1.5 gap-2 border-2 border-white transition-all"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
-          <span className="i-ph:plug text-base"></span>
+          <span className="i-ph:plug text-base text-black"></span>
           {previews.length > 0 && activePreviewIndex >= 0 && activePreviewIndex < previews.length ? (
-            <span className="text-xs font-medium">{previews[activePreviewIndex].port}</span>
+            <span className="text-xs font-black uppercase tracking-wider text-black">{previews[activePreviewIndex].port}</span>
           ) : null}
         </button>
         {isDropdownOpen && (
-          <div className="absolute left-0 mt-2 bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor rounded shadow-sm min-w-[140px] dropdown-animation">
-            <div className="px-4 py-2 border-b border-bolt-elements-borderColor text-sm font-semibold text-bolt-elements-textPrimary">
+          <div className="absolute left-0 mt-2 bg-black border-4 border-white rounded-none shadow-xl min-w-[160px] dropdown-animation">
+            <div className="px-4 py-2 border-b-2 border-white text-xs font-black uppercase tracking-wider text-white">
               Ports
             </div>
             {sortedPreviews.map((preview) => (
               <div
                 key={preview.port}
-                className="flex items-center px-4 py-2 cursor-pointer hover:bg-bolt-elements-item-backgroundActive"
+                className="flex items-center px-4 py-2.5 cursor-pointer hover:bg-white hover:text-black text-white transition-all"
                 onClick={() => {
                   setActivePreviewIndex(preview.index);
                   setIsDropdownOpen(false);
                   setHasSelectedPreview(true);
                 }}
               >
-                <span
-                  className={
-                    activePreviewIndex === preview.index
-                      ? 'text-bolt-elements-item-contentAccent'
-                      : 'text-bolt-elements-item-contentDefault group-hover:text-bolt-elements-item-contentActive'
-                  }
-                >
+                <span className={activePreviewIndex === preview.index ? 'font-black' : 'font-medium'}>
                   {preview.port}
                 </span>
               </div>

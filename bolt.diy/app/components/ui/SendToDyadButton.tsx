@@ -206,11 +206,21 @@ export default function SendToDyadButton({
           id={buttonId || undefined}
           onClick={handleClick}
           disabled={running}
-          style={{ padding: '6px 10px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6 }}
+          className="flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-wider bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {running ? 'Sending to Dyad…' : 'Send to Dyad'}
+          {running ? (
+            <>
+              <div className="i-ph:spinner animate-spin text-base" />
+              <span>Sending...</span>
+            </>
+          ) : (
+            <>
+              <div className="i-ph:upload text-base" />
+              <span>Send to Dyad</span>
+            </>
+          )}
         </button>
-        {status && <div style={{ marginTop: 8, fontSize: 13 }}>{status}</div>}
+        {status && <div className="mt-2 text-xs text-white font-mono">{status}</div>}
       </div>
 
       <LoginModal

@@ -21,8 +21,9 @@ export function HeaderActionButtons({ chatStarted }: HeaderActionButtonsProps) {
 
   return (
     <div className="flex items-center">
-      {chatStarted && shouldShowButtons && <ExportChatButton exportChat={exportChat} />}
-      {shouldShowButtons && <DeployButton />}
+      {/* Export and Deploy buttons removed as per user request */}
+      {/* {chatStarted && shouldShowButtons && <ExportChatButton exportChat={exportChat} />} */}
+      {/* {shouldShowButtons && <DeployButton />} */}
     </div>
   );
 }

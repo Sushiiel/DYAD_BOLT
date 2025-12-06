@@ -376,18 +376,18 @@ export const Menu = () => {
             <div className="flex gap-2">
               <a
                 href="/"
-                className="flex-1 flex gap-2 items-center rounded-xl px-4 py-2 transition-all text-bolt-elements-textPrimary shadow-[0_30px_60px_rgba(3,7,20,0.45)] border border-bolt-elements-borderColor bg-black"
+                className="flex-1 flex gap-2 items-center px-4 py-3 transition-all text-bolt-elements-textPrimary bg-white text-black border-2 border-white hover:bg-black hover:text-white"
               >
-                <span className="inline-block i-ph:plus-circle h-4 w-4" />
-                <span className="text-sm font-medium">Start new chat</span>
+                <span className="inline-block i-ph:plus-circle h-5 w-5" />
+                <span className="text-sm font-black uppercase tracking-wider">Start new chat</span>
               </a>
               <button
                 onClick={toggleSelectionMode}
                 className={classNames(
-                  'flex gap-1 items-center rounded-lg px-3 py-2 transition-all border',
+                  'flex gap-1 items-center px-3 py-2 transition-all border-2',
                   selectionMode
-                    ? 'bg-bolt-elements-button-primary-background text-bolt-elements-button-primary-text border-transparent shadow-[0_15px_40px_rgba(56,189,248,0.35)]'
-                    : 'bg-bolt-elements-bg-depth-3 text-bolt-elements-textSecondary border-bolt-elements-borderColor hover:border-bolt-elements-borderColorActive',
+                    ? 'bg-white text-black border-white'
+                    : 'bg-black text-white border-white/40 hover:border-white',
                 )}
                 aria-label={selectionMode ? 'Exit selection mode' : 'Enter selection mode'}
               >
@@ -396,19 +396,19 @@ export const Menu = () => {
             </div>
             <div className="relative w-full">
               <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <span className="i-ph:magnifying-glass h-4 w-4 text-bolt-elements-textTertiary" />
+                <span className="i-ph:magnifying-glass h-4 w-4 text-white/60" />
               </div>
               <input
-                className="w-full bg-[#080c16] relative pl-9 pr-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-[rgba(56,189,248,0.45)] text-sm text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary border border-bolt-elements-borderColor"
+                className="w-full bg-black relative pl-9 pr-3 py-2 border-2 border-white/40 focus:outline-none focus:border-white text-sm text-white placeholder:text-white/40 font-mono uppercase"
                 type="search"
-                placeholder="Search chats..."
+                placeholder="SEARCH..."
                 onChange={handleSearchChange}
                 aria-label="Search chats"
               />
             </div>
           </div>
           <div className="flex items-center justify-between text-sm px-4 py-2">
-            <div className="font-medium text-bolt-elements-textSecondary tracking-wide uppercase text-[11px]">
+            <div className="font-black text-white tracking-wider uppercase text-xs">
               Your Chats
             </div>
             {selectionMode && (

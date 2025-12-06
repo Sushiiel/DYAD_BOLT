@@ -11,7 +11,7 @@ $code-font-size: 13px;
   line-height: 1.6;
   color: var(--bolt-elements-textPrimary);
 
-  > *:not(:last-child) {
+  >*:not(:last-child) {
     margin-block-end: 16px;
   }
 
@@ -60,6 +60,7 @@ $code-font-size: 13px;
 
   p {
     white-space: pre-wrap;
+    color: #ffffff;
 
     &:not(:last-of-type) {
       margin-block-start: 0;
@@ -77,7 +78,7 @@ $code-font-size: 13px;
     }
   }
 
-  :not(pre) > code {
+  :not(pre)>code {
     font-family: $font-mono;
     font-size: $code-font-size;
 
@@ -130,12 +131,14 @@ $code-font-size: 13px;
   }
 
   li {
+    color: #ffffff;
+
     @include not-inside-actions {
-      & + li {
+      &+li {
         margin-block-start: 8px;
       }
 
-      > *:not(:last-child) {
+      >*:not(:last-child) {
         margin-block-end: 16px;
       }
     }

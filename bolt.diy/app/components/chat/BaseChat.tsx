@@ -139,7 +139,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(getApiKeysFromCookies());
     const [modelList, setModelList] = useState<ModelInfo[]>([]);
-    const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(false);
+    const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(true);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
     const [transcript, setTranscript] = useState('');
@@ -356,13 +356,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             'w-[30%]': showWorkbench
           })}>
             {!chatStarted && (
-              <div id="intro" className="mt-[16vh] max-w-2xl mx-auto text-center px-4 lg:px-0">
-                <h1 className="text-3xl lg:text-6xl font-bold text-bolt-elements-textPrimary mb-4 animate-fade-in">
-                  Where ideas begin
+              <div id="intro" className="mt-[14vh] max-w-5xl mx-auto text-center px-8">
+                <div className="mb-8 inline-block">
+                  <div className="flex items-center gap-3 px-6 py-3 bg-white text-black border-4 border-white">
+                    <div className="w-3 h-3 bg-black animate-pulse"></div>
+                    <span className="text-xs font-black tracking-[0.4em] uppercase">System Ready</span>
+                  </div>
+                </div>
+                <h1 className="text-5xl lg:text-8xl font-black text-white mb-8 tracking-tighter leading-tight">
+                  THINK IT.
+                  <br />
+                  TYPE IT.
+                  <br />
+                  SHIP IT.
                 </h1>
-                <p className="text-md lg:text-xl mb-8 text-bolt-elements-textSecondary animate-fade-in animation-delay-200">
-                  Bring ideas to life in seconds or get help on existing projects.
+                <p className="text-lg lg:text-2xl mb-16 text-white/70 font-mono max-w-2xl mx-auto leading-relaxed">
+                  Your AI co-pilot for instant full-stack development.<br />No setup. No limits. Just pure execution.
                 </p>
+                <div className="flex items-center justify-center gap-4">
+                  <div className="h-px flex-1 bg-white/20"></div>
+                  <span className="text-white/40 text-xs font-mono tracking-widest">▸ START COMMANDING</span>
+                  <div className="h-px flex-1 bg-white/20"></div>
+                </div>
               </div>
             )}
             <StickToBottom
@@ -377,7 +392,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {() => {
                     return chatStarted ? (
                       <Messages
-                        className="flex flex-col w-full flex-1 max-w-chat pb-4 mx-auto z-1"
+                        className="flex flex-col w-full flex-1 max-w-7xl pb-4 mx-auto z-1"
                         messages={messages}
                         isStreaming={isStreaming}
                         append={append}
@@ -394,8 +409,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 <ScrollToBottom />
               </StickToBottom.Content>
               <div
-                className={classNames('my-auto flex flex-col gap-2 w-full max-w-chat mx-auto z-prompt mb-6', {
-                  'sticky bottom-2': chatStarted,
+                className={classNames('flex flex-col gap-2 w-full max-w-7xl mx-auto z-prompt px-6', {
+                  'sticky bottom-6': chatStarted,
+                  'mb-8': !chatStarted,
                 })}
               >
                 <div className="flex flex-col gap-2">
@@ -515,16 +531,15 @@ function ScrollToBottom() {
 
   return (
     !isAtBottom && (
-      <>
-        <div className="sticky bottom-0 left-0 right-0 bg-gradient-to-t from-bolt-elements-background-depth-1 to-transparent h-20 z-10" />
+      <div className="absolute bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none">
         <button
-          className="sticky z-50 bottom-0 left-0 right-0 text-4xl rounded-lg px-1.5 py-0.5 flex items-center justify-center mx-auto gap-2 bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor text-bolt-elements-textPrimary text-sm"
+          className="pointer-events-auto rounded-full px-6 py-3 flex items-center justify-center gap-2 bg-white text-black text-sm font-black uppercase tracking-wider shadow-2xl hover:shadow-xl transition-all hover:scale-105 border-2 border-white"
           onClick={() => scrollToBottom()}
         >
-          Go to last message
-          <span className="i-ph:arrow-down animate-bounce" />
+          <span className="flex items-center">Go to latest message</span>
+          <span className="i-ph:arrow-down text-base flex items-center justify-center" />
         </button>
-      </>
+      </div>
     )
   );
 }

@@ -30,8 +30,8 @@ interface AssistantMessageProps {
   model?: string;
   provider?: ProviderInfo;
   parts:
-    | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
-    | undefined;
+  | (TextUIPart | ReasoningUIPart | ToolInvocationUIPart | SourceUIPart | FileUIPart | StepStartUIPart)[]
+  | undefined;
   addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
   chatId?: string; // Add chat ID for file organization
 }
@@ -105,7 +105,7 @@ export const AssistantMessage = memo(
     ) as ToolCallAnnotation[];
 
     return (
-      <div className="overflow-hidden w-full">
+      <div className="overflow-visible w-full">
         <>
           <div className=" flex gap-2 items-center text-sm text-bolt-elements-textSecondary mb-2">
             {(codeContext || chatSummary) && (
@@ -149,18 +149,18 @@ export const AssistantMessage = memo(
             )}
             <div className="flex w-full items-center justify-between">
               {usage && (
-                <div>
+                <div className="text-white text-sm">
                   Tokens: {usage.totalTokens} (prompt: {usage.promptTokens}, completion: {usage.completionTokens})
                 </div>
               )}
               {(onRewind || onFork) && messageId && (
-                <div className="flex gap-2 flex-col lg:flex-row ml-auto">
+                <div className="flex gap-3 items-center ml-auto">
                   {onRewind && (
                     <WithTooltip tooltip="Revert to this message">
                       <button
                         onClick={() => onRewind(messageId)}
                         key="i-ph:arrow-u-up-left"
-                        className="i-ph:arrow-u-up-left text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"
+                        className="i-ph:arrow-u-up-left text-xl text-white hover:text-white/80 transition-colors flex items-center justify-center"
                       />
                     </WithTooltip>
                   )}
@@ -169,7 +169,7 @@ export const AssistantMessage = memo(
                       <button
                         onClick={() => onFork(messageId)}
                         key="i-ph:git-fork"
-                        className="i-ph:git-fork text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"
+                        className="i-ph:git-fork text-xl text-white hover:text-white/80 transition-colors flex items-center justify-center"
                       />
                     </WithTooltip>
                   )}

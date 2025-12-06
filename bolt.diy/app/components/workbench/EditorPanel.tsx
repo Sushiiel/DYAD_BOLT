@@ -84,16 +84,16 @@ export const EditorPanel = memo(
       <PanelGroup direction="vertical">
         <Panel defaultSize={showTerminal ? DEFAULT_EDITOR_SIZE : 100} minSize={20}>
           <PanelGroup direction="horizontal">
-            <Panel defaultSize={20} minSize={15} collapsible className="border-r border-bolt-elements-borderColor">
+            <Panel defaultSize={20} minSize={15} collapsible className="border-r-4 border-white bg-black">
               <div className="h-full">
                 <Tabs.Root defaultValue="files" className="flex flex-col h-full">
-                  <PanelHeader className="w-full text-sm font-medium text-bolt-elements-textSecondary px-1">
+                  <PanelHeader className="w-full text-sm font-medium text-white px-2 border-b-2 border-white">
                     <div className="h-full flex-shrink-0 flex items-center justify-between w-full">
-                      <Tabs.List className="h-full flex-shrink-0 flex items-center">
+                      <Tabs.List className="h-full flex-shrink-0 flex items-center gap-1">
                         <Tabs.Trigger
                           value="files"
                           className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                            'h-full bg-transparent hover:bg-white hover:text-black px-3 py-2 text-xs font-black uppercase tracking-wider text-white data-[state=active]:bg-white data-[state=active]:text-black transition-all',
                           )}
                         >
                           Files
@@ -101,7 +101,7 @@ export const EditorPanel = memo(
                         <Tabs.Trigger
                           value="search"
                           className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                            'h-full bg-transparent hover:bg-white hover:text-black px-3 py-2 text-xs font-black uppercase tracking-wider text-white data-[state=active]:bg-white data-[state=active]:text-black transition-all',
                           )}
                         >
                           Search
@@ -109,7 +109,7 @@ export const EditorPanel = memo(
                         <Tabs.Trigger
                           value="locks"
                           className={classNames(
-                            'h-full bg-transparent hover:bg-bolt-elements-background-depth-3 py-0.5 px-2 rounded-lg text-sm font-medium text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary data-[state=active]:text-bolt-elements-textPrimary',
+                            'h-full bg-transparent hover:bg-white hover:text-black px-3 py-2 text-xs font-black uppercase tracking-wider text-white data-[state=active]:bg-white data-[state=active]:text-black transition-all',
                           )}
                         >
                           Locks
@@ -118,7 +118,7 @@ export const EditorPanel = memo(
                     </div>
                   </PanelHeader>
 
-                  <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none">
+                  <Tabs.Content value="files" className="flex-grow overflow-auto focus-visible:outline-none bg-black">
                     <FileTree
                       className="h-full"
                       files={files}
@@ -131,11 +131,11 @@ export const EditorPanel = memo(
                     />
                   </Tabs.Content>
 
-                  <Tabs.Content value="search" className="flex-grow overflow-auto focus-visible:outline-none">
+                  <Tabs.Content value="search" className="flex-grow overflow-auto focus-visible:outline-none bg-black">
                     <Search />
                   </Tabs.Content>
 
-                  <Tabs.Content value="locks" className="flex-grow overflow-auto focus-visible:outline-none">
+                  <Tabs.Content value="locks" className="flex-grow overflow-auto focus-visible:outline-none bg-black">
                     <LockManager />
                   </Tabs.Content>
                 </Tabs.Root>

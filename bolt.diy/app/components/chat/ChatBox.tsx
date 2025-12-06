@@ -13,7 +13,6 @@ import { toast } from 'react-toastify';
 import { SpeechRecognitionButton } from '~/components/chat/SpeechRecognition';
 import { SupabaseConnection } from './SupabaseConnection';
 import { ExpoQrModal } from '~/components/workbench/ExpoQrModal';
-import styles from './BaseChat.module.scss';
 import type { ProviderInfo } from '~/types/model';
 import { ColorSchemeDialog } from '~/components/ui/ColorSchemeDialog';
 import type { DesignScheme } from '~/types/design-scheme';
@@ -66,81 +65,255 @@ interface ChatBoxProps {
 
 export const ChatBox: React.FC<ChatBoxProps> = (props) => {
   return (
-    <div
-      className={classNames(
-        'relative bg-bolt-elements-bg-depth-2 backdrop-blur-xl p-4 rounded-2xl border border-bolt-elements-borderColor w-full max-w-chat mx-auto z-prompt space-y-3',
+    <div className="relative w-full max-w-7xl mx-auto z-prompt">
+      {/* Unified Container with Border */}
+      <div className="border-4 border-white bg-black">
 
-        /*
-         * {
-         *   'sticky bottom-2': chatStarted,
-         * },
-         */
-      )}
-    >
-      <svg className={classNames(styles.PromptEffectContainer)}>
-        <defs>
-          <linearGradient
-            id="line-gradient"
-            x1="20%"
-            y1="0%"
-            x2="-14%"
-            y2="10%"
-            gradientUnits="userSpaceOnUse"
-            gradientTransform="rotate(-45)"
-          >
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0%"></stop>
-            <stop offset="40%" stopColor="#38bdf8" stopOpacity="80%"></stop>
-            <stop offset="50%" stopColor="#f97316" stopOpacity="80%"></stop>
-            <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
-          </linearGradient>
-          <linearGradient id="shine-gradient">
-            <stop offset="0%" stopColor="white" stopOpacity="0%"></stop>
-            <stop offset="40%" stopColor="#ffffff" stopOpacity="80%"></stop>
-            <stop offset="50%" stopColor="#ffffff" stopOpacity="80%"></stop>
-            <stop offset="100%" stopColor="white" stopOpacity="0%"></stop>
-          </linearGradient>
-        </defs>
-        <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
-        <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
-      </svg>
-      <div>
-        <ClientOnly>
-          {() => (
-            <div className={props.isModelSettingsCollapsed ? 'hidden' : ''}>
-              <ModelSelector
-                key={props.provider?.name + ':' + props.modelList.length}
-                model={props.model}
-                setModel={props.setModel}
-                modelList={props.modelList}
-                provider={props.provider}
-                setProvider={props.setProvider}
-                providerList={props.providerList || (PROVIDER_LIST as ProviderInfo[])}
-                apiKeys={props.apiKeys}
-                modelLoading={props.isModelLoading}
-              />
-              {(props.providerList || []).length > 0 &&
-                props.provider &&
-                (!LOCAL_PROVIDERS.includes(props.provider.name) || 'OpenAILike') && (
-                  <APIKeyManager
-                    provider={props.provider}
-                    apiKey={props.apiKeys[props.provider.name] || ''}
-                    setApiKey={(key) => {
-                      props.onApiKeysChange(props.provider.name, key);
-                    }}
-                  />
+        {/* Top Section - Model Configuration & Tools (Collapsible) */}
+        <div className={classNames(
+          "border-b-4 border-white transition-all duration-300",
+          props.isModelSettingsCollapsed ? "h-0 overflow-hidden" : "p-8"
+        )}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Model Configuration */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-white text-sm font-black uppercase tracking-widest">Model Configuration</h3>
+              </div>
+              <ClientOnly>
+                {() => (
+                  <div className="space-y-6">
+                    <ModelSelector
+                      key={props.provider?.name + ':' + props.modelList.length}
+                      model={props.model}
+                      setModel={props.setModel}
+                      modelList={props.modelList}
+                      provider={props.provider}
+                      setProvider={props.setProvider}
+                      providerList={props.providerList || (PROVIDER_LIST as ProviderInfo[])}
+                      apiKeys={props.apiKeys}
+                      modelLoading={props.isModelLoading}
+                    />
+                    {(props.providerList || []).length > 0 &&
+                      props.provider &&
+                      (!LOCAL_PROVIDERS.includes(props.provider.name) || 'OpenAILike') && (
+                        <div className="pt-4 border-t-2 border-white/20">
+                          <APIKeyManager
+                            provider={props.provider}
+                            apiKey={props.apiKeys[props.provider.name] || ''}
+                            setApiKey={(key) => {
+                              props.onApiKeysChange(props.provider.name, key);
+                            }}
+                          />
+                        </div>
+                      )}
+                  </div>
                 )}
+              </ClientOnly>
+            </div>
+
+            {/* Tools Panel */}
+            <div>
+              <h3 className="text-white text-sm font-black uppercase tracking-widest mb-6">Tools & Actions</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  title="Upload file"
+                  className="flex flex-col items-center gap-3 p-4 bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all"
+                  onClick={() => props.handleFileUpload()}
+                >
+                  <div className="i-ph:paperclip text-2xl"></div>
+                  <span className="text-xs font-black uppercase">Upload</span>
+                </button>
+
+                <button
+                  title="Enhance prompt"
+                  disabled={props.input.length === 0 || props.enhancingPrompt}
+                  className="flex flex-col items-center gap-3 p-4 bg-white text-black hover:bg-black hover:text-white border-2 border-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    props.enhancePrompt?.();
+                    toast.success('Prompt enhanced!');
+                  }}
+                >
+                  {props.enhancingPrompt ? (
+                    <div className="i-svg-spinners:90-ring-with-bg text-2xl animate-spin"></div>
+                  ) : (
+                    <div className="i-bolt:stars text-2xl"></div>
+                  )}
+                  <span className="text-xs font-black uppercase">Enhance</span>
+                </button>
+
+                <SpeechRecognitionButton
+                  isListening={props.isListening}
+                  onStart={props.startListening}
+                  onStop={props.stopListening}
+                  disabled={props.isStreaming}
+                />
+
+                <ColorSchemeDialog designScheme={props.designScheme} setDesignScheme={props.setDesignScheme} />
+
+                {props.chatStarted && (
+                  <button
+                    className={classNames(
+                      "col-span-2 p-4 border-2 border-white transition-all flex items-center justify-center gap-3",
+                      props.chatMode === 'discuss'
+                        ? 'bg-white text-black'
+                        : 'bg-black text-white hover:bg-white hover:text-black',
+                    )}
+                    onClick={() => {
+                      props.setChatMode?.(props.chatMode === 'discuss' ? 'build' : 'discuss');
+                    }}
+                  >
+                    <div className="i-ph:chats text-xl" />
+                    <span className="text-xs font-black uppercase">
+                      {props.chatMode === 'discuss' ? 'Discuss Mode' : 'Build Mode'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Toggle Button */}
+        <button
+          onClick={() => props.setIsModelSettingsCollapsed(!props.isModelSettingsCollapsed)}
+          className="w-full py-3 bg-black text-white hover:bg-white hover:text-black border-b-4 border-white transition-all flex items-center justify-center gap-3"
+          disabled={!props.providerList || props.providerList.length === 0}
+        >
+          <div className={`i-ph:caret-${props.isModelSettingsCollapsed ? 'down' : 'up'} text-xl`} />
+          <span className="text-xs font-black uppercase tracking-widest">
+            {props.isModelSettingsCollapsed ? 'Show Settings' : 'Hide Settings'}
+          </span>
+          {props.isModelSettingsCollapsed && <span className="text-xs opacity-60">({props.model})</span>}
+        </button>
+
+        {/* Selected Element Indicator */}
+        {props.selectedElement && (
+          <div className="p-4 bg-black border-b-4 border-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-white text-xs font-black uppercase tracking-wider">Inspecting:</span>
+              <code className="bg-white text-black px-3 py-1.5 font-mono text-sm font-bold">
+                {props?.selectedElement?.tagName}
+              </code>
+            </div>
+            <button
+              className="bg-white text-black px-4 py-2 hover:bg-black hover:text-white border-2 border-white transition-all text-xs font-black uppercase"
+              onClick={() => props.setSelectedElement?.(null)}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* File Preview */}
+        {(props.uploadedFiles.length > 0 || props.imageDataList.length > 0) && (
+          <div className="p-6 bg-black border-b-4 border-white">
+            <h3 className="text-white text-sm font-black uppercase tracking-widest mb-4">Attachments</h3>
+            <FilePreview
+              files={props.uploadedFiles}
+              imageDataList={props.imageDataList}
+              onRemove={(index) => {
+                props.setUploadedFiles?.(props.uploadedFiles.filter((_, i) => i !== index));
+                props.setImageDataList?.(props.imageDataList.filter((_, i) => i !== index));
+              }}
+            />
+          </div>
+        )}
+
+        {/* Main Input Area */}
+        <div className="relative p-8">
+          <textarea
+            ref={props.textareaRef}
+            className="w-full px-6 py-6 bg-black text-white placeholder-white/40 outline-none resize-none text-lg font-mono leading-relaxed border-2 border-white/40 focus:border-white transition-all"
+            onDragEnter={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = '#ffffff';
+              e.currentTarget.style.borderWidth = '4px';
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderWidth = '2px';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderWidth = '2px';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+
+              const files = Array.from(e.dataTransfer.files);
+              files.forEach((file) => {
+                if (file.type.startsWith('image/')) {
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const base64Image = e.target?.result as string;
+                    props.setUploadedFiles?.([...props.uploadedFiles, file]);
+                    props.setImageDataList?.([...props.imageDataList, base64Image]);
+                  };
+                  reader.readAsDataURL(file);
+                }
+              });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                if (props.isStreaming) {
+                  props.handleStop?.();
+                } else if (!event.nativeEvent.isComposing) {
+                  props.handleSendMessage?.(event);
+                }
+              }
+            }}
+            value={props.input}
+            onChange={(event) => props.handleInputChange?.(event)}
+            onPaste={props.handlePaste}
+            style={{
+              minHeight: props.TEXTAREA_MIN_HEIGHT,
+              maxHeight: props.TEXTAREA_MAX_HEIGHT,
+            }}
+            placeholder={props.chatMode === 'build' ? '▸ DESCRIBE YOUR PROJECT...' : '▸ START CONVERSATION...'}
+            translate="no"
+          />
+
+          {/* Send Button - Bottom Right */}
+          <div className="absolute bottom-4 right-4">
+            <ClientOnly>
+              {() => (
+                <SendButton
+                  show={props.input.length > 0 || props.isStreaming || props.uploadedFiles.length > 0}
+                  isStreaming={props.isStreaming}
+                  disabled={!props.providerList || props.providerList.length === 0}
+                  onClick={(event) => {
+                    if (props.isStreaming) {
+                      props.handleStop?.();
+                    } else if (props.input.length > 0 || props.uploadedFiles.length > 0) {
+                      props.handleSendMessage?.(event);
+                    }
+                  }}
+                />
+              )}
+            </ClientOnly>
+          </div>
+
+          {/* Keyboard Hint */}
+          {props.input.length > 3 && (
+            <div className="absolute bottom-12 left-12 text-white/40 text-xs font-mono hidden lg:block">
+              <kbd className="px-2 py-1 border border-white/40">SHIFT</kbd> + <kbd className="px-2 py-1 border border-white/40">ENTER</kbd> = NEW LINE
             </div>
           )}
-        </ClientOnly>
+
+          {/* Input Stats */}
+          {props.input.length > 0 && (
+            <div className="flex justify-between items-center mt-4 px-2 text-white/60 text-xs font-mono">
+              <span>{props.input.length} CHARACTERS</span>
+              <span>{props.input.split(/\s+/).length} WORDS</span>
+            </div>
+          )}
+        </div>
       </div>
-      <FilePreview
-        files={props.uploadedFiles}
-        imageDataList={props.imageDataList}
-        onRemove={(index) => {
-          props.setUploadedFiles?.(props.uploadedFiles.filter((_, i) => i !== index));
-          props.setImageDataList?.(props.imageDataList.filter((_, i) => i !== index));
-        }}
-      />
+
       <ClientOnly>
         {() => (
           <ScreenshotStateManager
@@ -151,187 +324,8 @@ export const ChatBox: React.FC<ChatBoxProps> = (props) => {
           />
         )}
       </ClientOnly>
-      {props.selectedElement && (
-        <div className="flex mx-1.5 gap-2 items-center justify-between rounded-lg rounded-b-none border border-b-none border-bolt-elements-borderColor text-bolt-elements-textPrimary flex py-1 px-2.5 font-medium text-xs">
-          <div className="flex gap-2 items-center lowercase">
-            <code className="bg-accent-500 rounded-4px px-1.5 py-1 mr-0.5 text-white">
-              {props?.selectedElement?.tagName}
-            </code>
-            selected for inspection
-          </div>
-          <button
-            className="bg-transparent text-accent-500 pointer-auto"
-            onClick={() => props.setSelectedElement?.(null)}
-          >
-            Clear
-          </button>
-        </div>
-      )}
-      <div
-        className={classNames(
-          'relative border border-bolt-elements-borderColor/80 rounded-2xl bg-bolt-surface-fill shadow-[0_25px_60px_rgba(3,7,20,0.55)]',
-        )}
-      >
-        <textarea
-          ref={props.textareaRef}
-          className={classNames(
-            'w-full px-3 py-3 pr-12 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
-            'transition-all duration-200 border border-transparent focus:border-bolt-elements-borderColorActive',
-          )}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.currentTarget.style.border = '2px solid #38bdf8';
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.currentTarget.style.border = '2px solid #38bdf8';
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
 
-            const files = Array.from(e.dataTransfer.files);
-            files.forEach((file) => {
-              if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-
-                reader.onload = (e) => {
-                  const base64Image = e.target?.result as string;
-                  props.setUploadedFiles?.([...props.uploadedFiles, file]);
-                  props.setImageDataList?.([...props.imageDataList, base64Image]);
-                };
-                reader.readAsDataURL(file);
-              }
-            });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              if (event.shiftKey) {
-                return;
-              }
-
-              event.preventDefault();
-
-              if (props.isStreaming) {
-                props.handleStop?.();
-                return;
-              }
-
-              // ignore if using input method engine
-              if (event.nativeEvent.isComposing) {
-                return;
-              }
-
-              props.handleSendMessage?.(event);
-            }
-          }}
-          value={props.input}
-          onChange={(event) => {
-            props.handleInputChange?.(event);
-          }}
-          onPaste={props.handlePaste}
-          style={{
-            minHeight: props.TEXTAREA_MIN_HEIGHT,
-            maxHeight: props.TEXTAREA_MAX_HEIGHT,
-          }}
-          placeholder={props.chatMode === 'build' ? 'How can Bolt help you today?' : 'What would you like to discuss?'}
-          translate="no"
-        />
-        <ClientOnly>
-          {() => (
-            <SendButton
-              show={props.input.length > 0 || props.isStreaming || props.uploadedFiles.length > 0}
-              isStreaming={props.isStreaming}
-              disabled={!props.providerList || props.providerList.length === 0}
-              onClick={(event) => {
-                if (props.isStreaming) {
-                  props.handleStop?.();
-                  return;
-                }
-
-                if (props.input.length > 0 || props.uploadedFiles.length > 0) {
-                  props.handleSendMessage?.(event);
-                }
-              }}
-            />
-          )}
-        </ClientOnly>
-        <div className="flex justify-between items-center text-sm p-4 pt-2">
-          <div className="flex gap-1 items-center">
-            <ColorSchemeDialog designScheme={props.designScheme} setDesignScheme={props.setDesignScheme} />
-            <McpTools />
-            <IconButton title="Upload file" className="transition-all" onClick={() => props.handleFileUpload()}>
-              <div className="i-ph:paperclip text-xl"></div>
-            </IconButton>
-            <IconButton
-              title="Enhance prompt"
-              disabled={props.input.length === 0 || props.enhancingPrompt}
-              className={classNames('transition-all', props.enhancingPrompt ? 'opacity-100' : '')}
-              onClick={() => {
-                props.enhancePrompt?.();
-                toast.success('Prompt enhanced!');
-              }}
-            >
-              {props.enhancingPrompt ? (
-                <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
-              ) : (
-                <div className="i-bolt:stars text-xl"></div>
-              )}
-            </IconButton>
-
-            <SpeechRecognitionButton
-              isListening={props.isListening}
-              onStart={props.startListening}
-              onStop={props.stopListening}
-              disabled={props.isStreaming}
-            />
-            {props.chatStarted && (
-              <IconButton
-                title="Discuss"
-                className={classNames(
-                  'transition-all flex items-center gap-1 px-1.5',
-                  props.chatMode === 'discuss'
-                    ? '!bg-bolt-elements-item-backgroundAccent !text-bolt-elements-item-contentAccent'
-                    : 'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault',
-                )}
-                onClick={() => {
-                  props.setChatMode?.(props.chatMode === 'discuss' ? 'build' : 'discuss');
-                }}
-              >
-                <div className={`i-ph:chats text-xl`} />
-                {props.chatMode === 'discuss' ? <span>Discuss</span> : <span />}
-              </IconButton>
-            )}
-            <IconButton
-              title="Model Settings"
-              className={classNames('transition-all flex items-center gap-1', {
-                'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
-                  props.isModelSettingsCollapsed,
-                'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
-                  !props.isModelSettingsCollapsed,
-              })}
-              onClick={() => props.setIsModelSettingsCollapsed(!props.isModelSettingsCollapsed)}
-              disabled={!props.providerList || props.providerList.length === 0}
-            >
-              <div className={`i-ph:caret-${props.isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-              {props.isModelSettingsCollapsed ? <span className="text-xs">{props.model}</span> : <span />}
-            </IconButton>
-          </div>
-          {props.input.length > 3 ? (
-            <div className="text-xs text-bolt-elements-textTertiary">
-              Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
-              <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd> a new line
-            </div>
-          ) : null}
-          <SupabaseConnection />
-
-          <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />
-        </div>
-      </div>
+      <ExpoQrModal open={props.qrModalOpen} onClose={() => props.setQrModalOpen(false)} />
     </div>
   );
 };

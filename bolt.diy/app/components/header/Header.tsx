@@ -10,23 +10,28 @@ export function Header() {
 
   return (
     <header
-      className={classNames('flex items-center px-4 border-b h-[var(--header-height)]', {
+      className={classNames('flex items-center px-8 py-4 h-[var(--header-height)] bg-black border-b-2', {
         'border-transparent': !chat.started,
-        'border-bolt-elements-borderColor': chat.started,
+        'border-white': chat.started,
       })}
     >
-      <div className="flex items-center gap-2 z-logo text-bolt-elements-textPrimary">
-        <div className="i-ph:sidebar-simple-duotone text-xl" />
-        <span className="text-lg uppercase tracking-[0.3em] text-bolt-elements-textSecondary">Workspace</span>
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-white flex items-center justify-center border-2 border-white">
+          <div className="i-ph:code-bold text-3xl text-black" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-2xl font-black tracking-tighter text-white">WORKSPACE</span>
+          <span className="text-[10px] text-white/60 tracking-[0.3em] uppercase font-bold">Development Environment</span>
+        </div>
       </div>
-      {chat.started && ( // Display ChatDescription and HeaderActionButtons only when the chat has started.
+      {chat.started && (
         <>
-          <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
+          <span className="flex-1 px-6 truncate text-center text-white font-mono text-sm">
             <ClientOnly>{() => <ChatDescription />}</ClientOnly>
           </span>
           <ClientOnly>
             {() => (
-              <div className="">
+              <div className="flex items-center gap-3">
                 <HeaderActionButtons chatStarted={chat.started} />
               </div>
             )}
